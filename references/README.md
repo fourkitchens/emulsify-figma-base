@@ -17,12 +17,20 @@ prefixes — **no `bcj-` or any other theme-name segment**:
 | Category | Prefix | Example |
 |---|---|---|
 | Colors | `--clr-` | `--clr-red`, `--clr-grey-100` |
-| Spacing | `--s-` | `--s-16`, `--s-32` |
-| Font size | `--fs-` | `--fs-16`, `--fs-72` |
+| Spacing | `--s-` | `--s-16`, `--s-32` *(map key = px value)* |
+| Font size | `--fs-` | `--fs-16`, `--fs-72` *(map key = px value)* |
 | Font family | `--ff-` | `--ff-sans`, `--ff-serif` |
 | Font weight | `--fw-` | `--fw-700`, `--fw-bold` |
 | Line height | `--lh-` | `--lh-24` |
 | Letter spacing | `--ls-` | `--ls-1` |
+
+Spacing map keys in `_spacing.scss` and font-size keys in
+`_typography.scss` are **px values**, not ordinals. The
+`reference/base/spacing/_spacing.scss` map uses keys 1, 2, 3, …, 120 —
+those are literal pixels. See SKILL.md Step 4 "Map-key rule" for
+rationale (Storybook chrome `.sb-*` rules consume `var(--s-16)`,
+`var(--s-32)` expecting px-implied rem; ordinal keys collide and break
+the Storybook layout).
 
 Color Sass map keys and `clr()` call sites also drop the `bcj-` segment:
 - Map key: `red:`, `grey:`, `blue:` (not `bcj-red:`)

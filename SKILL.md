@@ -351,6 +351,19 @@ Each category follows the same two-file pattern:
 - `_{category}.scss` — Sass map (partial, not an entry point)
 - `{category}-variables.scss` — entry point; `@use`s the map, emits `:root {}`
 
+> **Map-key rule: spacing & font-size keys MUST be px values.**
+> `$spacings: (8: …, 16: …, 32: …)` — not ordinals. Reason: the `.sb-*`
+> chrome rules in `preview-head.css` (verbatim) consume `var(--s-16)`,
+> `var(--s-32)`, `var(--fs-14)`. The `*-variables.scss` entry point
+> emits one `--s-{key}` per map key. If your map keys are ordinal
+> (1, 2, 3…22) and Figma's "Spacing 8" is 28px, `--s-8` resolves to
+> 1.75rem instead of 0.5rem — chrome tables render at the wrong size.
+> Same trap for `--fs-*`. Always use the **px value** as the map key
+> (same as `references/base/spacing/_spacing.scss`, which uses keys
+> 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 14, 16, …, 120 = literal px).
+> Update every downstream caller (`space(N)`, `fontsize(N)`,
+> `lineheight(N)`) to pass px values too.
+
 Mirror each category:
 
 | Read from `references/base/` | Write to `src/components/base/` |
@@ -379,6 +392,58 @@ Read each file in `references/base/functions/` before writing its counterpart.
 - `_radius.scss` and `_shadow.scss` — **generate these when Figma defines
   border-radius / shadow tokens** (see Conditional categories below)
 
+### API contract: component SCSS uses the functions, not raw `var()`
+
+The Sass function partials above (`clr`, `space`, `fontsize`,
+`fontfamily`, `fontweight`, `lineheight`, `letterspacing`, and the
+conditional `radius` / `shadow`) are the **only** sanctioned way to
+read tokens from component SCSS. Every atom / molecule / organism
+written on top of this base must call them — **never** hand-write
+`var(--s-N)`, `var(--clr-X)`, `var(--fs-N)` etc. in component SCSS.
+
+| Token | Function call | NOT |
+|---|---|---|
+| Color | `color: clr(red);` `background: clr(grey, 100);` `border-color: clr(text, 0.5);` (alpha) | `color: var(--clr-red);` |
+| Spacing | `padding: space(16);` `gap: space(24);` | `padding: var(--s-16);` |
+| Font size | `font-size: fontsize(18);` | `font-size: var(--fs-18);` |
+| Font family | `font-family: fontfamily('heading');` | `font-family: var(--ff-heading);` |
+| Font weight | `font-weight: fontweight(700);` | `font-weight: var(--fw-700);` |
+| Line height | `line-height: lineheight(24);` | `line-height: var(--lh-24);` |
+| Letter spacing | `letter-spacing: letterspacing(1);` | `letter-spacing: var(--ls-1);` |
+| Border-radius | `border-radius: radius(md);` | `border-radius: var(--radius-md);` |
+| Shadow | `box-shadow: shadow(lg);` | `box-shadow: var(--shadow-lg);` |
+
+**Why the functions, not raw `var()`:**
+
+1. **Fallback safety.** Each function emits `var(--token, $map-value)`
+   so the rule still resolves to a real value if the CSS custom
+   property is absent (SSR snapshots, missing `*-variables.scss`
+   import, dynamic style isolation). Raw `var(--clr-red)` returns
+   `unset` and the cascade falls through.
+2. **`@error` on bad keys.** `space(13)` when 13 isn't in `$spacings`
+   stops the build with a named error. `var(--s-13)` silently no-ops.
+3. **Single refactor point.** Rename a Sass map key or change the CSS
+   var prefix → all callsites flow through one function. Hand-rolled
+   `var()` strings scatter and rot.
+4. **`clr()` adds alpha.** `clr(red, 0.5)` returns
+   `rgba(var(--clr-red), 0.5)`. Hand-rolled `rgba(var(--clr-red), 0.5)`
+   only works because `--clr-red` is an RGB triple (see Step 5);
+   skipping the function loses that contract guarantee.
+
+**The two legal exceptions** — places raw `var()` is correct:
+
+- `preview-head.css` — the file lives outside the Sass pipeline; chrome
+  rules in `references/preview-head.css` (`.sb-table th { padding:
+  var(--s-16) var(--s-32) }`) are verbatim and reference raw vars by
+  design.
+- Generated `*-variables.scss` entry points emit `:root { --s-N: …; }`
+  declarations — that's the source of the vars, not a consumer.
+
+The reference `_typography-mixins.scss` demonstrates the contract in
+practice: every mixin uses `fontsize(N)`, `fontfamily('serif')`,
+`fontweight(800)`, `lineheight(N)`, `letterspacing(N)`. Mirror that
+style in every component you write.
+
 ### `base.scss`
 
 Read `references/base/base.scss`. Preserve the exact `@use` order for
@@ -390,8 +455,16 @@ conditional categories like `shadows/shadows-variables`). The reference
 `base.scss` *omits* these because the bcj theme loads variable entry
 points elsewhere — but for a fresh Emulsify scaffold, they belong in
 `base.scss` so the `:root { --clr-…, --s-… }` blocks reach the compiled
-Drupal CSS. Storybook is unaffected either way (the `preview-head.css`
-plain-CSS `:root` block covers it), but Drupal needs the SCSS path.
+Drupal CSS.
+
+> **Cascade gotcha.** `node_modules/@emulsify/core/.storybook/utils.js`
+> calls `fetchCSSFiles()` which loads every `dist/**/*.css` after
+> `preview-head.css`. Any `--var` your SCSS emits with the same name as
+> a `preview-head.css` declaration **wins** in the cascade. So
+> Storybook is NOT insulated from your SCSS values. This is why map-key
+> collisions (see "Map-key rule" above) silently break Storybook
+> chrome — preview-head's `--s-16: 1rem` gets overridden by SCSS's
+> `--s-16: 4.5rem` at runtime. Match values or use disjoint names.
 
 When you generate the conditional categories `border-radius/` and/or
 `shadows/` (see below), add their `@use` lines alongside the others.
@@ -488,28 +561,47 @@ covered below.
 > The reference's existing `[data-component-theme='dark']` rule already
 > uses `rgba(var(--clr-grey-100))` — match that pattern.
 
-Example `:root {}` block (truncated):
+**Chrome-required CSS vars** consumed by the `.sb-*` rules (verbatim in
+`references/preview-head.css`): `--s-8 --s-16 --s-24 --s-32 --s-48
+--fs-14 --fs-16`. These names are fixed — the chrome rules `var()`
+them by these literal names. Two valid strategies:
+
+- **Px-keyed SCSS scale (preferred)** — if your `_spacing.scss` is px-keyed
+  per the "Map-key rule" in Step 4, the SCSS already emits `--s-8 /
+  --s-16 / --s-24 / --s-32 / --s-48` with the correct rem values. **Omit
+  the chrome alias block entirely** — declaring them in `preview-head.css`
+  duplicates (and may collide with) the SCSS output.
+- **Non-px / semantic SCSS scale** (e.g. bowl uses xs/sm/md/lg/xl/xxl) —
+  the SCSS emits `--s-xl`, `--s-md`, etc. with no `--s-8`/`--s-16`/…
+  collision. Declare the chrome aliases explicitly in `preview-head.css`
+  with their **px-implied** rem values (`--s-8: 0.5rem; --s-16: 1rem;
+  --s-24: 1.5rem; --s-32: 2rem; --s-48: 3rem; --fs-14: 0.875rem;
+  --fs-16: 1rem;`). Never set them to anything other than the
+  px-implied rem.
+
+Example `:root {}` block (truncated — assumes px-keyed SCSS scale, so
+no chrome alias block):
 
 ```css
 :root {
-  /* Spacing — plain rem values */
-  --s-xs: 0.125rem;
-  --s-lg: 1rem;
-  --s-xl: 2rem;
+  /* Spacing — px-keyed, plain rem values (also emitted by SCSS at same names) */
+  --s-2: 0.125rem;
+  --s-8: 0.5rem;
+  --s-16: 1rem;
+  --s-32: 2rem;
+  --s-48: 3rem;
 
   /* Colors as RGB triples (NOT hex) — clr() wraps in rgba() */
   --clr-white: 255, 255, 255;
   --clr-link: 0, 95, 137;
   --clr-link-hover-lighter: 0, 64, 91;
   --clr-grey-1000: 8, 11, 12;
-
-  /* Required aliases — .sb-* utility classes depend on these */
-  --spacing-xl:  var(--s-xl, 2rem);
-  --spacing-lg:  var(--s-lg, 1rem);
-  --fs-small:    var(--fs-small, 1rem);
-  --fs-caption:  var(--fs-caption, 0.875rem);
 }
 ```
+
+Do **NOT** invent alias names like `--spacing-xl`, `--fs-small`,
+`--fs-caption` — they're not consumed by any `.sb-*` rule and will be
+dead weight.
 
 Update the existing `[data-component-theme='dark']` rule to point at the
 design's darkest surface token (e.g. `rgb(var(--clr-grey-1000))`).
@@ -635,6 +727,7 @@ Common failure modes:
 | Twig namespace not resolving | Update `bcj` → target theme machine name in `preview.js` |
 | Storybook crashes at boot: `Module not found: Can't resolve './preview-head.js'` or `'../../../assets/fonts/sb-fonts.css'` | Reference `preview.js` imports both; they are bcj-specific. Delete the import line if the target theme has no such file. |
 | Component reads `drupalSettings.bcj_search` and gets bcj data in a non-bcj theme | The reference's `drupalSettings` polyfill leaks `bcj_search` / `bcj_language` keys. Strip both from `preview.js` for any other theme. |
+| Storybook `.sb-table` cells render with too much or too little padding; `.sb-content` margins look 3–4× off | Spacing SCSS map keyed by **ordinals** (1..22) instead of px values. Chrome rules consume `var(--s-16)`, `var(--s-32)` expecting px-implied rem; SCSS-emitted `--s-16` (e.g. 4.5rem for ordinal-16=72px) wins the cascade and blows out the layout. Re-key `_spacing.scss` + `spacing.yml` by px value (2, 4, 8, …, 120), update every `space(N)` callsite (`_container.scss`, `_top-border.scss`, `_utility.scss`, `_typography-mixins.scss`), and drop the now-duplicate `--s-*` alias block from `preview-head.css`. Same trap and same fix for `--fs-*`. |
 
 ---
 
@@ -652,7 +745,9 @@ Common failure modes:
 - [ ] `preview-head.css` `:root` block is plain CSS (no Sass)
 - [ ] `preview-head.css` `--clr-*` declarations are **RGB channel triples** (`0, 95, 137`), NOT hex (`#005f89`)
 - [ ] `[data-component-theme='dark']` uses `rgb(var(--clr-x))` with design's darkest surface token
-- [ ] `.sb-*` spacing and font-size aliases present in `preview-head.css`
+- [ ] Spacing map keyed by **px value** (2, 4, 8, …) — not ordinal (1, 2, 3, …22)
+- [ ] Font-size map keyed by **px value** (12, 14, 16, …) — not ordinal
+- [ ] Chrome-required vars (`--s-8 --s-16 --s-24 --s-32 --s-48 --fs-14 --fs-16`) resolve to their **px-implied rem** at runtime — declared once (either by SCSS emit if scale is px-keyed, or by explicit alias in `preview-head.css` if scale is semantic). No duplicate declaration with mismatched values.
 - [ ] `preview.js` font loading matches Step 3 decision
 - [ ] `preview.js` Twig namespaces updated to target theme machine name
 - [ ] `config/emulsify-core/storybook/main.js` written from `references/storybook/main.js` (sass-loader legacy API patch)

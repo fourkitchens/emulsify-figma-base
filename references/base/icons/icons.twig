@@ -14,12 +14,12 @@
       </thead>
       <tbody>
         {% for icon in icons %}
-          {% set snippet = "{{ include('bcj:icon', { name: '" ~ icon ~ "' }, with_context: false) }}" %}
+          {% set snippet = "{{ include('my_theme:icon', { name: '" ~ icon ~ "' }, with_context: false) }}" %}
           <tr role="button" class="js-copy-trigger" title="Click to copy snippet" data-usage="{{ snippet|e('html_attr') }}">
             <td><code>{{ icon }}</code></td>
             <td>
               <span class="icon sb-icon-preview">
-                {{ include('bcj:icon', { name: icon }, with_context: false) }}
+                {{ include('my_theme:icon', { name: icon }, with_context: false) }}
               </span>
             </td>
           </tr>

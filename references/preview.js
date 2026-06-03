@@ -9,7 +9,7 @@ Twig.cache(false);
 
 // Constants used by the `source()` polyfill.
 const PUBLIC_ASSET_BASE = (typeof window !== 'undefined' && window.location && window.location.hostname === 'fourkitchens.github.io')
-  ? '/bcj/assets/'
+  ? '/my_theme/assets/'
   : '/assets/';
 const INLINE_ASSET_EXTS = new Set(['svg', 'html', 'twig', 'css', 'js', 'json', 'txt', 'md']);
 const IMAGE_ASSET_EXTS  = new Set(['png', 'jpg', 'jpeg', 'gif', 'webp', 'avif']);
@@ -26,9 +26,9 @@ const twigComponents = require.context(
  * @return {Function|undefined}
  */
 const twigNamespaceToPath = (name) => {
-  // bcj:icon, @bcj/icon.twig
-  if (name.startsWith('bcj:') || name.startsWith('@bcj/')) {
-    const part = name.startsWith('bcj:') ? name.split(':')[1] : name.replace('@bcj/', '').replace('.twig', '');
+  // my_theme:icon, @my_theme/icon.twig
+  if (name.startsWith('my_theme:') || name.startsWith('@my_theme/')) {
+    const part = name.startsWith('my_theme:') ? name.split(':')[1] : name.replace('@my_theme/', '').replace('.twig', '');
     const path = `./${part}/${part}.twig`;
     try {
       {
@@ -52,9 +52,9 @@ const twigNamespaceToPath = (name) => {
     }
   }
 
-  // bcj/icon.twig via webpack alias
-  if (name.startsWith('bcj/')) {
-    const part = name.replace(/^bcj\//, '').replace('.twig', '');
+  // my_theme/icon.twig via webpack alias
+  if (name.startsWith('my_theme/')) {
+    const part = name.replace(/^my_theme\//, '').replace('.twig', '');
     const path = `./${part}/${part}.twig`;
     try {
       return twigComponents(path).default || twigComponents(path);
@@ -170,11 +170,11 @@ window.drupalSettings = window.drupalSettings || {
     currentPath: '/',
     currentPathIsAdmin: false
   },
-  bcj_search: {
+  my_theme_search: {
     langprefix: '',
     swiftype: false,
   },
-  bcj_language: {
+  my_theme_language: {
     not_translated_langcode: 'es'
   },
   user: {
@@ -182,7 +182,7 @@ window.drupalSettings = window.drupalSettings || {
     permissionsHash: 'mock-permissions-hash'
   },
   ajaxPageState: {
-    theme: 'bcj',
+    theme: 'my_theme',
     theme_token: 'mock-theme-token'
   },
   ajaxTrustedUrl: {},

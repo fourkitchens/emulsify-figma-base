@@ -58,12 +58,12 @@ p + br {
   @if $size == large {
     &::before,
     &::after {
-      background: transparent url('/themes/custom/bcj/assets/images/BrennanCenter_websiteRedesign_halftone_main.png') no-repeat;
+      background: transparent url('/themes/custom/my_theme/assets/images/BrennanCenter_websiteRedesign_halftone_main.png') no-repeat;
     }
   } @else if $size == small {
     &::before,
     &::after {
-      background: transparent url('/themes/custom/bcj/assets/images/BrennanCenter_websiteRedesign_halftone_main_right.png') no-repeat;
+      background: transparent url('/themes/custom/my_theme/assets/images/BrennanCenter_websiteRedesign_halftone_main_right.png') no-repeat;
     }
   }
 

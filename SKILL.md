@@ -336,12 +336,11 @@ regex/heuristic — examples:
 Emulsify UI Kit PDFs typically label type styles as **"Font Primary"**
 without a concrete family name. After extraction:
 
-- If a concrete `font-family` string IS present (e.g. `Font: Inter`)
+- If a concrete `font-family` string IS present
   → carry it forward to Step 3 as the discovered family.
 - If no concrete family is present → defer to Step 3 and **ask the
-  user** for the family. **Do not guess** (do not default to Inter,
-  system-ui, or anything else). The PDF supplied the type *scale*;
-  the user supplies the *family*.
+  user** for the family. **Do not guess a family name.** The PDF
+  supplied the type *scale*; the user supplies the *family*.
 
 ### 1-PDF.4 Dark mode
 
@@ -415,7 +414,7 @@ Resulting CSS custom properties use these prefixes regardless of flag:
 
 Color Sass map keys and `clr()` call sites carry the same name (no prefix
 inside the call): map key `red:`, call site `clr(red)`. Never inject a
-theme-name segment like `bcj-` or `mytheme-` into these prefixes — the
+theme-name segment like `my_theme-` or `mytheme-` into these prefixes — the
 theme name lives only in Twig namespaces and asset URL paths, which the
 skill handles separately via the `structure` tier rule.
 
@@ -458,9 +457,9 @@ map. **Every row is tagged with a tier** (`verbatim` / `structure` /
 - `verbatim` → copy byte-for-byte. No edits at all.
 - `structure` → preserve markup / class names / mixin signatures / YAML
   keys / SCSS structure. Replace **only** token values, family strings,
-  and `bcj`-namespace strings.
+  and `my_theme`-namespace strings.
 - `tokens` → reference shape only. Regenerate body from the Figma token
-  inventory; do **not** carry bcj-specific values forward.
+  inventory; do **not** carry my_theme-specific values forward.
 
 Check the tier before writing each file. If a file is tagged `verbatim`,
 do not "improve" it.
@@ -572,7 +571,7 @@ the function partials (`functions/color`, `functions/space`).
 **Add `@use` lines for every token entry point** (`colors/color-variables`,
 `spacing/spacing-variables`, `typography/typography-variables`, and any
 conditional categories like `shadows/shadows-variables`). The reference
-`base.scss` *omits* these because the bcj theme loads variable entry
+`base.scss` *omits* these because the my_theme theme loads variable entry
 points elsewhere — but for a fresh Emulsify scaffold, they belong in
 `base.scss` so the `:root { --clr-…, --s-… }` blocks reach the compiled
 Drupal CSS.
@@ -740,23 +739,23 @@ via `<link>` injected into the document head — never via `@import` in
 SCSS or JS.
 
 Update Twig namespace patterns to match the target theme machine name
-(replace `bcj` references with `{theme-machine-name}`).
+(replace `my_theme` references with `{theme-machine-name}`).
 
 **Drop reference imports for files that don't exist in the target theme.**
 The reference imports `'./preview-head.js'` and
-`'../../../assets/fonts/sb-fonts.css'` — both are bcj-specific extras
+`'../../../assets/fonts/sb-fonts.css'` — both are my_theme-specific extras
 (GSAP / clipboard JS, a local fonts CSS). A fresh Emulsify scaffold has
 neither. Leaving the import lines in place crashes Storybook at boot
 with "module not found." Confirm each file's existence in the target;
 delete the matching import line if absent.
 
-**Strip bcj-specific `drupalSettings` polyfill keys.** The reference's
-`window.drupalSettings` polyfill includes `bcj_search` and `bcj_language`
-keys. These are bcj-Drupal-module-specific. Remove both entirely for any
+**Strip my_theme-specific `drupalSettings` polyfill keys.** The reference's
+`window.drupalSettings` polyfill includes `my_theme_search` and `my_theme_language`
+keys. These are my_theme-Drupal-module-specific. Remove both entirely for any
 other theme — they leak the source theme's app surface and confuse
 components that introspect `drupalSettings`. Also collapse the
 `PUBLIC_ASSET_BASE` GH-Pages branch (`fourkitchens.github.io`) — it's a
-bcj deployment hook; replace with a single `/assets/` constant unless
+my_theme deployment hook; replace with a single `/assets/` constant unless
 the target theme has its own GH-Pages deployment.
 
 Write result to `{THEME_ROOT}/config/emulsify-core/storybook/preview.js`.
@@ -830,7 +829,7 @@ Common failure modes:
 | Error | Fix |
 |---|---|
 | PDF has page headers that don't match the recognized category table | Non-conforming PDF (Step 1-PDF.6). Stop and ask the user for a Figma URL or a PDF that follows the Emulsify UI Kit page-per-category layout. Do NOT freelance an extraction. |
-| PDF has type styles labeled "Font Primary" with no concrete family name | Per Step 1-PDF.3, defer to Step 3 and ask the user for the family. **Do not guess** Inter / system-ui / etc. |
+| PDF has type styles labeled "Font Primary" with no concrete family name | Per Step 1-PDF.3, defer to Step 3 and ask the user for the family. **Do not guess** a family name. |
 | PDF > 20 pages and `Read` errors | Chunk reads with `pages: "1-10"`, then `pages: "11-20"`, … (Read tool max is 20 pages per call). Merge inventories across chunks. |
 | Figma tool says "need selection" / "no node provided" | Missing or malformed `nodeId`. Do NOT ask user to open desktop app. Re-parse the URL: `node-id=486-1939` → pass `nodeId: "486:1939"`. Both `fileKey` and `nodeId` are required for `get_variable_defs` and `get_design_context`. |
 | `get_variable_defs` returned empty but the file has Variables | The supplied `nodeId` was too deep to reach any variable-bound node. Ask user for a page-level or root tokens frame URL ("Copy link to selection" on the Figma page tab) and retry 1a. |
@@ -846,9 +845,9 @@ Common failure modes:
 | Wrong CSS var name | Re-read the token source; use exact property names from Step 1 inventory |
 | Dark theme not applying | Update `[data-component-theme='dark']` in `preview-head.css` to use `rgb(var(--clr-x))` with the design's darkest surface token. |
 | Webpack error: cannot find `base/...` | Check `base.scss` `@use` lines match generated category folders |
-| Twig namespace not resolving | Update `bcj` → target theme machine name in `preview.js` |
-| Storybook crashes at boot: `Module not found: Can't resolve './preview-head.js'` or `'../../../assets/fonts/sb-fonts.css'` | Reference `preview.js` imports both; they are bcj-specific. Delete the import line if the target theme has no such file. |
-| Component reads `drupalSettings.bcj_search` and gets bcj data in a non-bcj theme | The reference's `drupalSettings` polyfill leaks `bcj_search` / `bcj_language` keys. Strip both from `preview.js` for any other theme. |
+| Twig namespace not resolving | Update `my_theme` → target theme machine name in `preview.js` |
+| Storybook crashes at boot: `Module not found: Can't resolve './preview-head.js'` or `'../../../assets/fonts/sb-fonts.css'` | Reference `preview.js` imports both; they are my_theme-specific. Delete the import line if the target theme has no such file. |
+| Component reads `drupalSettings.my_theme_search` and gets my_theme data in a non-my_theme theme | The reference's `drupalSettings` polyfill leaks `my_theme_search` / `my_theme_language` keys. Strip both from `preview.js` for any other theme. |
 | Storybook `.sb-table` cells render with too much or too little padding; `.sb-content` margins look 3–4× off | Spacing SCSS map keyed by **ordinals** (1..22) instead of px values. Chrome rules consume `var(--s-16)`, `var(--s-32)` expecting px-implied rem; SCSS-emitted `--s-16` (e.g. 4.5rem for ordinal-16=72px) wins the cascade and blows out the layout. Re-key `_spacing.scss` + `spacing.yml` by px value (2, 4, 8, …, 120), update every `space(N)` callsite (`_container.scss`, `_top-border.scss`, `_utility.scss`, `_typography-mixins.scss`), and drop the now-duplicate `--s-*` alias block from `preview-head.css`. Same trap and same fix for `--fs-*`. |
 
 ---
@@ -857,7 +856,7 @@ Common failure modes:
 
 - [ ] Source type confirmed at Step 0a (PDF or Figma) — explicit user response, not inferred from a prior message
 - [ ] **If PDF:** per-page category routing logged (which page → which category) before any file writes
-- [ ] **If PDF and family undetected:** user supplied the font family at Step 3 (skill did not guess Inter / system-ui)
+- [ ] **If PDF and family undetected:** user supplied the font family at Step 3 (skill did not guess a family name)
 - [ ] Token inventory printed before any files written, user confirmed
 - [ ] Every reference file read before its counterpart was generated
 - [ ] All `_`-prefixed files are Sass partials (not entry points)
@@ -865,7 +864,7 @@ Common failure modes:
 - [ ] `base.scss` uses `@use` for every category (not `@import`)
 - [ ] `base.scss` `@use`s every `*-variables.scss` entry point so Drupal CSS-var output is non-empty (reference omits these — add for fresh themes)
 - [ ] `preview.js` imports for files absent from target theme (`preview-head.js`, `sb-fonts.css`) deleted
-- [ ] `preview.js` `drupalSettings` polyfill stripped of `bcj_search` / `bcj_language` keys
+- [ ] `preview.js` `drupalSettings` polyfill stripped of `my_theme_search` / `my_theme_language` keys
 - [ ] `_rem-calc.scss` + `_px2rem.scss` copied verbatim
 - [ ] `preview-head.css` `:root` block is plain CSS (no Sass)
 - [ ] `preview-head.css` `--clr-*` declarations are **RGB channel triples** (`0, 95, 137`), NOT hex (`#005f89`)
@@ -907,7 +906,7 @@ Common failure modes:
 - **PDF font-family caveat:** Emulsify UI Kit-style PDFs label type
   styles as "Font Primary" without naming the actual family. Per
   Step 1-PDF.3 the skill must ask the user for the family at Step 3 —
-  never default to Inter, system-ui, or any other guess.
+  never default to a specific family; always ask the user.
 - **PDF page-chunking:** the `Read` tool caps at 20 pages per call. For
   longer PDFs, read in ranges (`pages: "1-10"`, `pages: "11-20"`, …)
   and merge the per-chunk inventories before the Step 1-PDF.5 confirm.

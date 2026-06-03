@@ -12,7 +12,7 @@ read-only reference material. All output goes to the target theme directory.
 ## CSS custom property prefix convention
 
 The references emit (and the skill must emit) these CSS custom property
-prefixes — **no `bcj-` or any other theme-name segment**:
+prefixes — **no `my_theme-` or any other theme-name segment**:
 
 | Category | Prefix | Example |
 |---|---|---|
@@ -32,13 +32,13 @@ rationale (Storybook chrome `.sb-*` rules consume `var(--s-16)`,
 `var(--s-32)` expecting px-implied rem; ordinal keys collide and break
 the Storybook layout).
 
-Color Sass map keys and `clr()` call sites also drop the `bcj-` segment:
-- Map key: `red:`, `grey:`, `blue:` (not `bcj-red:`)
-- Call site: `clr(red)`, `clr(grey-100)` (not `clr(bcj-red)`)
+Color Sass map keys and `clr()` call sites also drop the `my_theme-` segment:
+- Map key: `red:`, `grey:`, `blue:` (not `my_theme-red:`)
+- Call site: `clr(red)`, `clr(grey-100)` (not `clr(my_theme-red)`)
 
-The `bcj` strings that **remain** in the references (preview.js Twig
-namespaces, `bcj:icon` includes, `/themes/custom/bcj/...` font/image
-paths, `bcj_search`/`bcj_language` drupalSettings keys) are the **theme
+The `my_theme` strings that **remain** in the references (preview.js Twig
+namespaces, `my_theme:icon` includes, `/themes/custom/my_theme/...` font/image
+paths, `my_theme_search`/`my_theme_language` drupalSettings keys) are the **theme
 machine name** — the skill swaps these to the target theme's machine name
 at runtime per the `structure` tier rule.
 
@@ -51,15 +51,15 @@ tells you **exactly** how to handle that file when generating output.
 
 | Tier | Rule |
 |---|---|
-| `verbatim` | Copy byte-for-byte to the target. Do **not** edit anything — not values, not names, not whitespace. These files have no bcj-specific content. |
-| `structure` | Preserve all markup, class names, JS export names, mixin signatures, YAML keys, and SCSS structure. Replace **only** token values, variable map contents, font family strings, and Twig namespace strings. bcj-specific *shape* is correct; bcj-specific *values* may need updating. |
-| `tokens` | Reference shows the **shape** of the file only. The body is bcj-specific (e.g. `bcj-red`, `Benton Sans`, `bcj` namespace) and **must not** be carried into output. Regenerate the file body from the Figma token inventory; mirror the SCSS pattern (Sass map → entry point → `:root {}`) but use new names + values. |
+| `verbatim` | Copy byte-for-byte to the target. Do **not** edit anything — not values, not names, not whitespace. These files have no my_theme-specific content. |
+| `structure` | Preserve all markup, class names, JS export names, mixin signatures, YAML keys, and SCSS structure. Replace **only** token values, variable map contents, font family strings, and Twig namespace strings. my_theme-specific *shape* is correct; my_theme-specific *values* may need updating. |
+| `tokens` | Reference shows the **shape** of the file only. The body is my_theme-specific (e.g. `my_theme-red`, `Benton Sans`, `my_theme` namespace) and **must not** be carried into output. Regenerate the file body from the Figma token inventory; mirror the SCSS pattern (Sass map → entry point → `:root {}`) but use new names + values. |
 
 **Why this exists:** without these tags, every file looks like "a template
 to adapt." With them, the rule is explicit per-file. `verbatim` files
 short-circuit any thinking. `structure` files protect the Storybook /
 Drupal-Twig conventions that are easy to break subtly. `tokens` files
-prevent bcj-specific brand names from leaking into output.
+prevent my_theme-specific brand names from leaking into output.
 
 ---
 
@@ -162,7 +162,7 @@ empty).
 | Tier | Reference file | Target path | What to update |
 |---|---|---|---|
 | `structure` | `preview-head.css` | `config/emulsify-core/storybook/preview-head.css` | Replace the `:root {}` block (and `[data-component-theme='dark']` block if dark mode) with new design tokens as **plain CSS** (no Sass). Preserve all `.sb-*` class rules. |
-| `structure` | `preview.js` | `config/emulsify-core/storybook/preview.js` | Replace `bcj` Twig namespace strings with target theme machine name. Update Google Fonts `<link>` to design's fonts (or remove for local `@font-face`). |
+| `structure` | `preview.js` | `config/emulsify-core/storybook/preview.js` | Replace `my_theme` Twig namespace strings with target theme machine name. Update Google Fonts `<link>` to design's fonts (or remove for local `@font-face`). |
 
 ---
 

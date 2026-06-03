@@ -1,18 +1,22 @@
 ---
 name: emulsify-figma-base
 description: >
-  Builds a complete Emulsify design system base from a Figma file via the
-  Figma MCP. Use this skill any time the user provides a figma.com URL
-  (file or frame) and wants to scaffold or refresh the `src/components/base/`
-  layer of an Emulsify Drupal theme — including SCSS token files, Sass
-  functions, Storybook documentation stories, and Storybook config files
-  (`preview-head.css`, `preview.js`). Also trigger when the user says things
-  like "generate Emulsify base from Figma", "apply this Figma design to
-  Emulsify", "create the design system from Figma", "build the base from
-  Figma", or invokes the `/emulsify-figma-base` slash command. Assumes a
-  fresh / empty Emulsify child theme (no existing components in
-  `src/components/`). For non-Figma inputs (Anthropic Design API URL),
-  use the sibling `emulsify-design-base` skill instead.
+  Builds a complete Emulsify design system base from a Figma file (via
+  the Figma MCP) or a design-tokens PDF (via the built-in Read tool).
+  Use this skill any time the user provides a figma.com URL (file or
+  frame) OR a local PDF path with design tokens and wants to scaffold
+  or refresh the `src/components/base/` layer of an Emulsify Drupal
+  theme — including SCSS token files, Sass functions, Storybook
+  documentation stories, and Storybook config files (`preview-head.css`,
+  `preview.js`). Also trigger when the user says things like "generate
+  Emulsify base from Figma or a design-tokens PDF", "apply this Figma
+  design to Emulsify", "apply this design PDF to Emulsify", "create the
+  design system from Figma or PDF", "build the base from Figma or PDF",
+  "build Emulsify base from this token PDF", or invokes the
+  `/emulsify-figma-base` slash command. Both sources flow into the same
+  Step 4 output generation. Assumes a fresh / empty Emulsify child theme
+  (no existing components in `src/components/`). For Anthropic Design
+  API URLs, use the sibling `emulsify-design-base` skill instead.
 ---
 
 # Emulsify Figma Base Skill
@@ -20,10 +24,12 @@ description: >
 ## Overview
 
 This skill scaffolds the `src/components/base/` layer of an empty Emulsify
-Drupal child theme using design tokens read from a Figma file via the
-Figma MCP server. Output: full SCSS token system, Sass functions, Storybook
-stories per category, and the two design-system-dependent Storybook config
-files (`preview-head.css`, `preview.js`).
+Drupal child theme using design tokens read from **either** a Figma file
+(via the Figma MCP server) **or** a local design-tokens PDF (via the
+built-in `Read` tool). Both sources feed the same Step 4 file generation.
+Output: full SCSS token system, Sass functions, Storybook stories per
+category, and the two design-system-dependent Storybook config files
+(`preview-head.css`, `preview.js`).
 
 **Scope guardrails:**
 
@@ -66,14 +72,15 @@ confirm; presence of tokens in Figma is the trigger.
 
 > "Are you supplying design tokens from a **PDF** or from **Figma**?"
 
-- If **PDF**: respond with —
-  > "PDF support is planned for v2 of this skill. Please provide a Figma
-  > `/design/` URL instead."
-  
-  Then continue to Step 0 with the Figma flow.
-- If **Figma**: continue directly to Step 0.
+- If **Figma**: continue to Step 0 → **Step 1-Figma** (Figma MCP path).
+- If **PDF**: ask for the absolute PDF path, then continue to Step 0 →
+  **Step 1-PDF** (the PDF path defined below).
 
-This prompt is mandatory even if the user already pasted a Figma URL — confirm once so the source choice is explicit, then proceed.
+This prompt is mandatory even if the user already pasted a Figma URL or
+a PDF path in their previous message — confirm once so the source
+choice is explicit, then proceed. PDF and Figma are both first-class
+sources; the downstream Step 4 file generation is identical regardless
+of source.
 
 ---
 
@@ -83,7 +90,8 @@ Before writing any files, confirm:
 
 | Input | How to get it |
 |---|---|
-| **Figma URL** | Provided by the user. Must be a `/design/` URL **with a `node-id` query param** — e.g. `https://www.figma.com/design/{fileKey}/{name}?node-id=486-1939`. **Prefer a page-level or root "tokens" frame node** (right-click the page tab or top-level tokens frame in Figma → "Copy link to selection"). A deeply nested node returns only the variables referenced from that node and its descendants — full coverage requires a top-level node. Reject `/make/` URLs. If the URL has no `node-id`, call `get_metadata` with only `fileKey` to list pages and ask the user to pick one. |
+| **Figma URL** *(Figma source only)* | Provided by the user. Must be a `/design/` URL **with a `node-id` query param** — e.g. `https://www.figma.com/design/{fileKey}/{name}?node-id=486-1939`. **Prefer a page-level or root "tokens" frame node** (right-click the page tab or top-level tokens frame in Figma → "Copy link to selection"). A deeply nested node returns only the variables referenced from that node and its descendants — full coverage requires a top-level node. Reject `/make/` URLs. If the URL has no `node-id`, call `get_metadata` with only `fileKey` to list pages and ask the user to pick one. |
+| **PDF path** *(PDF source only)* | Absolute path on disk (e.g. `/Users/me/Downloads/guide.pdf`). Skill reads via the built-in `Read` tool, which supports PDFs natively up to 20 pages per call — for larger PDFs, the skill chunks reads in `pages:` ranges (see Step 1-PDF.0). The PDF must follow the Emulsify UI Kit "one category per page" layout (Colors page, Spacing page, Font Primary page, etc.). Non-conforming PDFs → see Step 1-PDF.6. |
 | **Theme root** | Path to `web/themes/custom/{theme-name}/` in the repo |
 | **Theme machine name** | Derived from the theme directory name (e.g., `my_theme`) |
 | **Naming flag** | `--semantic` (default) or `--literal` |
@@ -96,7 +104,10 @@ and ask whether to proceed anyway — this skill does not audit.
 
 ---
 
-## Step 1 — Read tokens from Figma
+## Step 1-Figma — Read tokens from Figma
+
+*(Use this section when the user picked **Figma** at Step 0a. For the
+PDF path see [Step 1-PDF](#step-1-pdf--read-tokens-from-pdf) below.)*
 
 Auto-detect path with three tiers:
 
@@ -248,6 +259,115 @@ Breakpoints: sm, md, lg, xl, xxl
 ```
 
 Confirm with user before proceeding to file writes.
+
+---
+
+## Step 1-PDF — Read tokens from PDF
+
+*(Use this section when the user picked **PDF** at Step 0a. For the
+Figma path see [Step 1-Figma](#step-1-figma--read-tokens-from-figma)
+above.)*
+
+The PDF path assumes an **Emulsify UI Kit-style "design tokens" PDF**:
+one category per page, labeled token rows, similar to the canonical
+`bowl` and `jello` reference UI Kit PDFs. For non-conforming PDFs
+(marketing decks, full brand books, anything without per-page token
+sections) abort per Step 1-PDF.6 and ask the user for a Figma URL or a
+structured PDF.
+
+### 1-PDF.0 Read the PDF
+
+Call the `Read` tool on the absolute PDF path. The `Read` tool supports
+PDFs natively and returns one page per `<document_content>`.
+
+- For PDFs ≤ 10 pages: one `Read` call covers the file.
+- For PDFs > 10 pages: chunk reads via the `pages:` parameter
+  (`pages: "1-10"`, then `pages: "11-20"`, …). Max 20 pages per call.
+- Cache parsed text in conversation variables. **Do not re-read.**
+
+### 1-PDF.1 Per-page category detection
+
+Each page begins with a header (one of the bold title strings at the
+top of the page). Treat the header as the page's category. Mapping
+(case-insensitive):
+
+| Page header text | Category |
+|---|---|
+| `COLORS`, `Colors`, `Palette` | Colors |
+| `Spacing` | Spacing |
+| `Font Primary`, `Font Secondary`, `Typography`, `Type Scale` | Font sizes (+ implied family) |
+| `Line height`, `LineHeights` | Line heights |
+| `Breakpoints` | Breakpoints |
+| `Border` | Border widths *(conditional)* |
+| `Opacity` | Opacity *(conditional)* |
+| `Radius`, `Border Radius` | Border-radius *(conditional)* |
+| `Size` | Folds into Spacing (de-duplicate by px value) |
+| `Shadow`, `Elevation` | Shadows *(conditional)* |
+| `Motion`, `Animation`, `Duration`, `Easing` | Motion tokens *(conditional)* |
+
+Log the page→category routing during extraction (the output checklist
+requires it).
+
+### 1-PDF.2 Per-row extraction
+
+Within each page, rows follow one of these patterns. Extract via
+regex/heuristic — examples:
+
+- **Color row** — `{group} {label} #{hex}` (e.g. `primary default #0096e4`).
+  Six-or-eight-char hex preceded by a label; the group heading is the
+  most recent bold sub-header on the page (`primary`, `text`,
+  `EmulsifyBlue`, `grays`, `WUP`, etc.).
+- **Spacing row** — `spacing.{key} {num}` or `{key} {num}` where `{key}`
+  is `xs|sm|md|lg|xl|xxl` and `{num}` is a literal px integer.
+- **Font-size row** — `{name} {N}px` where `{name}` is the display label
+  (`Colossus`, `Body`, `Caption`, ...) and `{N}` is an integer.
+- **Line-height row** — `lineHeights.{key} {N}%` → convert percentage to
+  unitless decimal (`100%` → `1`, `137%` → `1.37`).
+- **Breakpoint row** — `breakpoint.{key} {num}` → px min-width.
+- **Border-width row** — `border.{key} {num}` (numeric or semantic key).
+- **Opacity row** — `opacity.{key} {N}%` → decimal 0..1.
+- **Radius row** — `radius.{key} {num}` (px).
+- **Shadow row** — `shadow.{key} {value-spec}` where `{value-spec}` is
+  the full `0 4px 8px rgba(...)` string when present; otherwise capture
+  the shadow stack as written and flag for manual review.
+
+### 1-PDF.3 Font family detection
+
+Emulsify UI Kit PDFs typically label type styles as **"Font Primary"**
+without a concrete family name. After extraction:
+
+- If a concrete `font-family` string IS present (e.g. `Font: Inter`)
+  → carry it forward to Step 3 as the discovered family.
+- If no concrete family is present → defer to Step 3 and **ask the
+  user** for the family. **Do not guess** (do not default to Inter,
+  system-ui, or anything else). The PDF supplied the type *scale*;
+  the user supplies the *family*.
+
+### 1-PDF.4 Dark mode
+
+UI Kit PDFs are usually single-mode (light). If the PDF has a section
+labeled `Dark` / `Night` with mirrored color rows, treat the second set
+as the dark palette and enable dual-mode generation per the dark-mode
+rules in Step 4. Otherwise single-mode.
+
+### 1-PDF.5 Emit the same inventory table as Step 1-Figma → Step 1d
+
+Use the **same printed inventory format** as Step 1d, but change the
+`Source:` line to `PDF (<filename>, <N> pages, <M> recognized categories)`.
+Confirm with user before proceeding to file writes.
+
+### 1-PDF.6 Failure mode — non-conforming PDF
+
+If header detection yields **zero** recognized categories, **stop** and
+reply:
+
+> "This PDF doesn't match the Emulsify UI Kit token-page format.
+> Categories I look for as page headers: Colors, Spacing, Font Primary
+> / Typography, Line height, Breakpoints, Radius, Shadow, Border,
+> Opacity. Could you supply a Figma `/design/` URL instead, or a PDF
+> that follows the Emulsify UI Kit page-per-category layout?"
+
+Do not freelance an extraction from an unrecognized PDF.
 
 ---
 
@@ -709,7 +829,9 @@ Common failure modes:
 
 | Error | Fix |
 |---|---|
-| User answered "PDF" at Step 0a | PDF parsing not yet supported. Reply: "PDF support is planned for v2. Please provide a Figma `/design/` URL instead." then resume Step 0. |
+| PDF has page headers that don't match the recognized category table | Non-conforming PDF (Step 1-PDF.6). Stop and ask the user for a Figma URL or a PDF that follows the Emulsify UI Kit page-per-category layout. Do NOT freelance an extraction. |
+| PDF has type styles labeled "Font Primary" with no concrete family name | Per Step 1-PDF.3, defer to Step 3 and ask the user for the family. **Do not guess** Inter / system-ui / etc. |
+| PDF > 20 pages and `Read` errors | Chunk reads with `pages: "1-10"`, then `pages: "11-20"`, … (Read tool max is 20 pages per call). Merge inventories across chunks. |
 | Figma tool says "need selection" / "no node provided" | Missing or malformed `nodeId`. Do NOT ask user to open desktop app. Re-parse the URL: `node-id=486-1939` → pass `nodeId: "486:1939"`. Both `fileKey` and `nodeId` are required for `get_variable_defs` and `get_design_context`. |
 | `get_variable_defs` returned empty but the file has Variables | The supplied `nodeId` was too deep to reach any variable-bound node. Ask user for a page-level or root tokens frame URL ("Copy link to selection" on the Figma page tab) and retry 1a. |
 | URL has no `node-id` query param | Call `get_metadata` with only `fileKey` (omit nodeId) → returns top-level pages. Ask user for a node-specific URL ("Copy link to selection" in Figma). |
@@ -733,6 +855,9 @@ Common failure modes:
 
 ## Output checklist
 
+- [ ] Source type confirmed at Step 0a (PDF or Figma) — explicit user response, not inferred from a prior message
+- [ ] **If PDF:** per-page category routing logged (which page → which category) before any file writes
+- [ ] **If PDF and family undetected:** user supplied the font family at Step 3 (skill did not guess Inter / system-ui)
 - [ ] Token inventory printed before any files written, user confirmed
 - [ ] Every reference file read before its counterpart was generated
 - [ ] All `_`-prefixed files are Sass partials (not entry points)
@@ -779,3 +904,10 @@ Common failure modes:
   merged into `_utility.scss`.
 - `functions/_top-border.scss` is expected to exist even if no current
   component uses it — write it from the reference.
+- **PDF font-family caveat:** Emulsify UI Kit-style PDFs label type
+  styles as "Font Primary" without naming the actual family. Per
+  Step 1-PDF.3 the skill must ask the user for the family at Step 3 —
+  never default to Inter, system-ui, or any other guess.
+- **PDF page-chunking:** the `Read` tool caps at 20 pages per call. For
+  longer PDFs, read in ranges (`pages: "1-10"`, `pages: "11-20"`, …)
+  and merge the per-chunk inventories before the Step 1-PDF.5 confirm.

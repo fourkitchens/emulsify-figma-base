@@ -1,4 +1,11 @@
+import { fileURLToPath } from 'node:url';
+import { dirname, resolve } from 'node:path';
 import extendWebpackConfig from '../../../node_modules/@emulsify/core/.storybook/webpack.config.js';
+
+const _filename = fileURLToPath(import.meta.url);
+const _dirname = dirname(_filename);
+// Theme root = three levels above this file (config/emulsify-core/storybook/main.js → theme/).
+const themeRoot = resolve(_dirname, '../../..');
 
 /**
  * Storybook override: run Emulsify's webpack chain first, then walk every
@@ -50,6 +57,22 @@ const walkRules = (rules, hits) => {
 };
 
 const configOverrides = {
+  // Map each assets/ dir to a matching URL so source('@assets/icons/x.svg')
+  // resolves to /assets/icons/x.svg. The emulsify-core default `staticDirs`
+  // uses plain strings, which Storybook serves at URL root (`/x.svg`) — that
+  // breaks the source() XHR fetch and forces the polyfill to fall back to
+  // returning the URL string, which is what shows up in the Icons table.
+  //
+  // Absolute paths are required: Storybook 9's `{from, to}` form serializes
+  // to "from:to" and runs it through path.resolve, which mangles colon-form
+  // relative paths. Absolute `from` skips that codepath.
+  staticDirs: [
+    { from: resolve(themeRoot, 'assets/fonts'),  to: '/assets/fonts'  },
+    { from: resolve(themeRoot, 'assets/images'), to: '/assets/images' },
+    { from: resolve(themeRoot, 'assets/icons'),  to: '/assets/icons'  },
+    { from: resolve(themeRoot, 'assets/videos'), to: '/assets/videos' },
+    resolve(themeRoot, 'dist'),
+  ],
   webpackFinal: async (storybookConfig, options) => {
     const config = await extendWebpackConfig({
       config: storybookConfig,

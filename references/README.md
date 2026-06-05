@@ -176,12 +176,19 @@ the list of valid icon names is theme-specific. The skill regenerates
 `enum:` from the SVG filenames found in `{THEME_ROOT}/assets/icons/` at
 scaffold time, or leaves it omitted if no SVGs exist yet.
 
+**Location is fixed to `base/icons/`.** Do NOT also create
+`src/components/icon/icon.twig` or `src/components/icon/icon.component.yml`
+at the top level. Drupal SDC discovers components by folder name
+regardless of nesting depth, so two `icon/` folders register as
+duplicate component IDs and SDC throws a registration error.
+
 ### Storybook config templates
 
 | Tier | Reference file | Target path | What to update |
 |---|---|---|---|
 | `structure` | `preview-head.css` | `config/emulsify-core/storybook/preview-head.css` | Replace the `:root {}` block (and `[data-component-theme='dark']` block if dark mode) with new design tokens as **plain CSS** (no Sass). Preserve all `.sb-*` class rules. |
 | `structure` | `preview.js` | `config/emulsify-core/storybook/preview.js` | Replace `my_theme` Twig namespace strings with target theme machine name. Update Google Fonts `<link>` to design's fonts (or remove for local `@font-face`). |
+| `structure` | `storybook/main.js` | `config/emulsify-core/storybook/main.js` | Substitute `[{THEME_MACHINE_NAME}]` in the `console.log` line. The `configOverrides.staticDirs` block (`{from, to}` map for `assets/{fonts,images,icons,videos}` + `dist`) is **verbatim** — no per-theme substitution; all paths derive from `themeRoot` at runtime. |
 
 ---
 

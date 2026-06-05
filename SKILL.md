@@ -659,11 +659,21 @@ Also ship the `icon` SDC component the listing depends on:
   values to substitute.
 - `references/base/icons/icon.component.yml` →
   `src/components/base/icons/icon.component.yml` — **tokens tier**.
-  Reference omits `enum:` under `properties.name`. Regenerate `enum:`
-  from the SVG filenames in `{THEME_ROOT}/assets/icons/` (strip
-  `.svg`, sort alphabetically). If `assets/icons/` is empty at
-  scaffold time, omit the `enum:` block entirely — the theme owner
-  re-runs the skill (or hand-edits the yml) once real SVGs land.
+  Reference omits `enum:` under `properties.name`. **Imperatively** list
+  `{THEME_ROOT}/assets/icons/*.svg` (e.g. `ls {THEME_ROOT}/assets/icons/*.svg`),
+  strip the `.svg` extension, sort alphabetically, and emit the result
+  as the `enum:` block. Only when the directory is empty or missing
+  does the skill omit `enum:` — once real SVGs land, re-run the skill
+  (or hand-edit the yml) to populate it.
+
+**Location is fixed to `base/icons/` — do NOT also create a top-level
+`src/components/icon/` folder.** Drupal SDC discovers components by
+folder name regardless of nesting depth, so two folders named `icon/`
+register as duplicate component IDs and SDC throws a registration
+error. The reference ships the files under `base/icons/`; the skill
+mirrors that path and nothing else. The `{theme}:icon` Twig include in
+`icons.twig` resolves to the component at `base/icons/icon.*` — no
+top-level duplicate needed.
 
 Without `icon.twig` + `icon.component.yml`, the `Base/Icons` Storybook
 story renders rows of empty `<span class="icon sb-icon-preview">`
@@ -804,6 +814,36 @@ Substitutions when writing into the theme:
 - `[{THEME_MACHINE_NAME}]` → the target theme machine name (the
   bracketed prefix on the `console.log` line).
 
+#### `main.js` `staticDirs` map (required — fixes the Icons table render)
+
+Beyond the sass-loader patch, the reference `main.js` also defines a
+`configOverrides.staticDirs` array that maps each `assets/*` directory
+to a matching URL path via absolute `{from, to}` entries (`assets/fonts`,
+`assets/images`, `assets/icons`, `assets/videos`, plus an absolute
+`dist` entry). The skill writes it verbatim — **no per-theme
+substitution** — because all paths derive at runtime from `themeRoot`
+(computed via `import.meta.url`).
+
+**Why it matters:** emulsify-core's default `staticDirs` uses bare
+strings, which Storybook serves at URL root (`/x.svg` instead of
+`/assets/icons/x.svg`). The icon SDC template calls
+`source('@assets/icons/' ~ name ~ '.svg')`. At Storybook runtime the
+`source()` polyfill XHRs the URL — with bare-string `staticDirs` the
+fetch 404s and the polyfill falls back to returning the URL string
+verbatim, which is what gets rendered into the `Base/Icons` table
+("`/assets/icons/arrow-right.svg`" instead of the inline SVG).
+
+**Why absolute paths:** Storybook 9's `{from, to}` form serializes to
+`"from:to"` and runs the `from` through `path.resolve`, which mangles
+colon-form relative paths. The reference uses
+`resolve(themeRoot, 'assets/icons')` so `from` is already absolute and
+skips the mangling codepath.
+
+The reference also adds the three node imports
+(`fileURLToPath` from `node:url`, `dirname` + `resolve` from `node:path`)
+and the `themeRoot = resolve(_dirname, '../../..')` line at the top of
+the file. Carry them through unchanged.
+
 Write result to `{THEME_ROOT}/config/emulsify-core/storybook/main.js`.
 
 > **Note** — this file also lives in the "scope guardrails" carve-out
@@ -856,6 +896,8 @@ Common failure modes:
 | URL contains `/make/` | Figma Make files not supported by this skill. Ask user for a regular `/design/` URL. |
 | `An importer must have either canonicalize and load methods` **inside `preview-head.css`** | Remove any Sass from `preview-head.css`; inline all values as plain CSS. |
 | `An importer must have either canonicalize and load methods` **on any `.scss` compile** (most components) | Missing `main.js` override. Write `config/emulsify-core/storybook/main.js` from `references/storybook/main.js` — it forces `sass-loader` `api: 'legacy'` so Emulsify-core's `node-sass-glob-importer` works with Dart Sass ≥ 1.45. |
+| `Base/Icons` story rows show raw text like `/assets/icons/arrow-right.svg` in the Preview column instead of the inline SVG | `main.js` missing the `staticDirs` `{from, to}` map. Bare-string `staticDirs` from emulsify-core serves at URL root, so `source('@assets/icons/x.svg')` polyfill XHR 404s and returns the URL string verbatim. Re-emit `main.js` from `references/storybook/main.js` — it ships the absolute-path mapping for `assets/{fonts,images,icons,videos}` + `dist`. |
+| Drupal SDC registration error: duplicate component id `icon` | Icon SDC scaffolded at both `src/components/base/icons/icon.*` and `src/components/icon/icon.*`. Delete the top-level `src/components/icon/` folder; SDC discovers components by folder name regardless of nesting depth. Skill must only write under `base/icons/`. |
 | Component background appears unset / browser DevTools shows `Invalid property value` on `background-color: rgba(#005f89, 1)` | `--clr-*` in `preview-head.css` written as hex. They must be RGB triples (e.g. `--clr-link: 0, 95, 137;`) because `clr()` wraps in `rgba(var(--clr-x), 1)`. |
 | Storybook fails to start: `Failed to load static files, no such directory: ./dist` | Run `mkdir -p {THEME_ROOT}/dist` once. The `dist/` directory is webpack's output target; storybook serves it as a static dir even when empty. |
 | Storybook fails: `Can't resolve '../../../src/components/ui/'` in preview.js | The `require.context` in preview.js needs the `ui/` (or matching layer) directory to exist. Create `src/components/ui/.gitkeep` so the directory resolves even before any UI components exist. |
@@ -894,10 +936,12 @@ Common failure modes:
 - [ ] `preview.js` font loading matches Step 3 decision
 - [ ] `preview.js` Twig namespaces updated to target theme machine name
 - [ ] `config/emulsify-core/storybook/main.js` written from `references/storybook/main.js` (sass-loader legacy API patch)
+- [ ] `main.js` `configOverrides.staticDirs` present with absolute `{from, to}` entries for `assets/{fonts,images,icons,videos}` + absolute `dist` path (theme root resolved via `import.meta.url` → `themeRoot`)
 - [ ] `{THEME_ROOT}/dist/` directory exists (storybook static target)
 - [ ] `src/components/ui/.gitkeep` present (preview.js require.context target)
 - [ ] `icons/.gitkeep` present
 - [ ] Icon SDC component (`icon.twig` verbatim + `icon.component.yml` with `enum:` regenerated from `assets/icons/*.svg`, or `enum:` omitted if no SVGs) present under `src/components/base/icons/`
+- [ ] Icon SDC component exists **only** under `src/components/base/icons/` — no duplicate at top-level `src/components/icon/` (Drupal SDC throws `duplicate component id` otherwise)
 - [ ] Storybook started, `/index.json` verified
 - [ ] Zero webpack errors
 - [ ] First component SCSS that calls `clr()` compiles without `"An importer must have…"` or `rgba(#hex)` errors

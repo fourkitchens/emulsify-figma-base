@@ -494,7 +494,7 @@ Mirror each category:
 | `fonts/` | `fonts/` (see Step 3 — pattern depends on font loading strategy) |
 | `motion/` | `motion/` |
 | `utility/` | `utility/` |
-| `icons/` | `icons/` (also create `.gitkeep` for empty themes) |
+| `icons/` | `icons/` (includes the `icon` SDC component — `icon.twig` + `icon.component.yml` — alongside the listing; also create `.gitkeep` for empty themes) |
 
 **Dual-mode colors:** when dark mode is enabled, emit two SCSS maps
 (`$colors-light`, `$colors-dark`) and generate both `:root { ... }` and
@@ -651,6 +651,25 @@ What to update per file type:
 ### `icons/` directory
 
 Copy `references/base/icons/icons.stories.js` and `icons.twig` verbatim.
+Also ship the `icon` SDC component the listing depends on:
+
+- `references/base/icons/icon.twig` → `src/components/base/icons/icon.twig`
+  — **verbatim**. Uses project-local `bem()` / `add_attributes()` and
+  `source('@assets/icons/' ~ name ~ '.svg')`. No theme-name or token
+  values to substitute.
+- `references/base/icons/icon.component.yml` →
+  `src/components/base/icons/icon.component.yml` — **tokens tier**.
+  Reference omits `enum:` under `properties.name`. Regenerate `enum:`
+  from the SVG filenames in `{THEME_ROOT}/assets/icons/` (strip
+  `.svg`, sort alphabetically). If `assets/icons/` is empty at
+  scaffold time, omit the `enum:` block entirely — the theme owner
+  re-runs the skill (or hand-edits the yml) once real SVGs land.
+
+Without `icon.twig` + `icon.component.yml`, the `Base/Icons` Storybook
+story renders rows of empty `<span class="icon sb-icon-preview">`
+cells because `icons.twig`'s `{% include '{theme}:icon', … %}` calls
+have no target.
+
 The reference does not include a `.gitkeep` (the reference's icons
 folder is populated). For a fresh theme, also write `icons/.gitkeep`
 so the directory is tracked in git until real SVGs land in
@@ -878,6 +897,7 @@ Common failure modes:
 - [ ] `{THEME_ROOT}/dist/` directory exists (storybook static target)
 - [ ] `src/components/ui/.gitkeep` present (preview.js require.context target)
 - [ ] `icons/.gitkeep` present
+- [ ] Icon SDC component (`icon.twig` verbatim + `icon.component.yml` with `enum:` regenerated from `assets/icons/*.svg`, or `enum:` omitted if no SVGs) present under `src/components/base/icons/`
 - [ ] Storybook started, `/index.json` verified
 - [ ] Zero webpack errors
 - [ ] First component SCSS that calls `clr()` compiles without `"An importer must have…"` or `rgba(#hex)` errors

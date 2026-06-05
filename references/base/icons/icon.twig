@@ -1,0 +1,23 @@
+{#
+/**
+ * @file
+ * Component - Icon.
+ *
+ * Available props:
+ * - name [string]: Name of the icon (matches filename in assets/icons).
+ * - modifier_classes [array]: Array of modifiers to apply to the icon.
+ * - block_class [string]: Block name to apply to the icon.
+ * - aria_hidden [string]: Block variable to add aria hidden attribute to the icon.
+ */
+#}
+
+{% set block_class = block_class|default('') %}
+{% set element_class = element_class|default('icon') %}
+{% set modifier_classes = modifier_classes|default([]) %}
+{% set extra_classes = extra_classes|default([]) %}
+
+{% if name %}
+  <span {{ bem(element_class, modifier_classes, block_class, extra_classes)  }} {{ aria_hidden ? ' aria-hidden="true"' }} >
+    {{ source('@assets/icons/' ~ name ~ '.svg') | raw }}
+  </span>
+{% endif %}

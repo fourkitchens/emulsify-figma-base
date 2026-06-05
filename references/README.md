@@ -157,6 +157,25 @@ Also create `src/components/base/icons/.gitkeep` (not in reference;
 the reference's icons folder is populated, but a fresh theme starts
 empty).
 
+### SDC icon component
+
+`base/icons/icons.twig` calls `{% include '{theme}:icon', { name: icon } %}`
+to render each SVG row. The `icon` SDC component lives alongside the
+listing files so that include resolves out of the box. The component
+uses the project-local `bem()` / `add_attributes()` helpers and reads
+SVG markup with `source('@assets/icons/' ~ name ~ '.svg')`.
+
+| Tier | Reference file | Target path |
+|---|---|---|
+| `verbatim` | `base/icons/icon.twig` | `src/components/base/icons/icon.twig` |
+| `tokens` | `base/icons/icon.component.yml` | `src/components/base/icons/icon.component.yml` |
+
+The reference `icon.component.yml` intentionally ships **without** an
+`enum:` block under `properties.name` — the prop shape is generic, but
+the list of valid icon names is theme-specific. The skill regenerates
+`enum:` from the SVG filenames found in `{THEME_ROOT}/assets/icons/` at
+scaffold time, or leaves it omitted if no SVGs exist yet.
+
 ### Storybook config templates
 
 | Tier | Reference file | Target path | What to update |

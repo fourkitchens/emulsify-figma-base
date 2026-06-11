@@ -36,11 +36,12 @@ Color Sass map keys and `clr()` call sites also drop the `my_theme-` segment:
 - Map key: `red:`, `grey:`, `blue:` (not `my_theme-red:`)
 - Call site: `clr(red)`, `clr(grey-100)` (not `clr(my_theme-red)`)
 
-The `my_theme` strings that **remain** in the references (preview.js Twig
-namespaces, `my_theme:icon` includes, `/themes/custom/my_theme/...` font/image
-paths, `my_theme_search`/`my_theme_language` drupalSettings keys) are the **theme
-machine name** — the skill swaps these to the target theme's machine name
-at runtime per the `structure` tier rule.
+The `my_theme` strings that **remain** in the references (`my_theme:icon`
+includes inside `base/` Twig, `/themes/custom/my_theme/...` font/image paths)
+are the **theme machine name** — the skill swaps these to the target theme's
+machine name at runtime per the `structure` tier rule. Under Emulsify Core 4
+the Storybook config files no longer carry Twig namespaces or a `drupalSettings`
+mock (Core renders Twig/SDC itself), so there is nothing to swap there.
 
 ---
 
@@ -128,7 +129,7 @@ real font family names from Figma.
 If the user picks **Google Fonts** or **Adobe Fonts** instead of local
 `@font-face`, replace `font.scss` body with a single `@import url(...)`
 and **do not** generate per-family partials. The font `<link>` should
-also go in `preview.js` so Storybook loads it.
+also go in `storybook/preview-head.html` so Storybook loads it.
 
 ### Storybook story files
 
@@ -182,13 +183,21 @@ at the top level. Drupal SDC discovers components by folder name
 regardless of nesting depth, so two `icon/` folders register as
 duplicate component IDs and SDC throws a registration error.
 
-### Storybook config templates
+### Storybook config templates (Emulsify Core 4 / Vite)
+
+Core 4 uses a Vite builder and renders Twig/SDC stories itself, so the only
+config file the skill must regenerate is `preview-head.html` (design tokens +
+chrome + fonts). `preview.js`, `main.js`, `theme.js`, and `manager-head.html`
+are Core scaffold defaults — the skill writes them only to (re)establish a clean
+baseline, with the small optional edits noted below.
 
 | Tier | Reference file | Target path | What to update |
 |---|---|---|---|
-| `structure` | `preview-head.css` | `config/emulsify-core/storybook/preview-head.css` | Replace the `:root {}` block (and `[data-component-theme='dark']` block if dark mode) with new design tokens as **plain CSS** (no Sass). Preserve all `.sb-*` class rules. |
-| `structure` | `preview.js` | `config/emulsify-core/storybook/preview.js` | Replace `my_theme` Twig namespace strings with target theme machine name. Update Google Fonts `<link>` to design's fonts (or remove for local `@font-face`). |
-| `structure` | `storybook/main.js` | `config/emulsify-core/storybook/main.js` | Substitute `[{THEME_MACHINE_NAME}]` in the `console.log` line. The `configOverrides.staticDirs` block (`{from, to}` map for `assets/{fonts,images,icons,videos}` + `dist`) is **verbatim** — no per-theme substitution; all paths derive from `themeRoot` at runtime. |
+| `structure` | `storybook/preview-head.html` | `config/emulsify-core/storybook/preview-head.html` | The one design-system-dependent config file. In the `<style>` block, replace the `:root {}` tokens (and the `[data-component-theme='dark']` rule, if dark mode) with the design's tokens as **plain CSS** (no Sass). Update or delete the font `<link>` per the Step 3 font decision. Preserve all `.sb-*` class rules verbatim. |
+| `verbatim` | `storybook/preview.js` | `config/emulsify-core/storybook/preview.js` | Core-default stub (`export const parameters = {}`). Copy as-is; no Twig namespaces or `drupalSettings` to swap anymore. |
+| `verbatim` | `storybook/main.js` | `config/emulsify-core/storybook/main.js` | Core-default stub (`export default {}`). Copy as-is; no webpack/sass-loader patch or `staticDirs` map needed under Vite. |
+| `structure` | `storybook/theme.js` | `config/emulsify-core/storybook/theme.js` | Optional manager-UI branding. Carry as-is, or swap the brand colors/fonts to the design's palette. Not required for any Base/* story to render. |
+| `verbatim` | `storybook/manager-head.html` | `config/emulsify-core/storybook/manager-head.html` | Manager-UI chrome only. Copy as-is; edit only if `theme.js` references a manager-only font. |
 
 ---
 

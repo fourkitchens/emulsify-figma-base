@@ -7,8 +7,8 @@ description: >
   frame) OR a local PDF path with design tokens and wants to scaffold
   or refresh the `src/components/base/` layer of an Emulsify Drupal
   theme — including SCSS token files, Sass functions, Storybook
-  documentation stories, and Storybook config files (`preview-head.css`,
-  `preview.js`). Also trigger when the user says things like "generate
+  documentation stories, and the Storybook config file
+  (`preview-head.html`). Also trigger when the user says things like "generate
   Emulsify base from Figma or a design-tokens PDF", "apply this Figma
   design to Emulsify", "apply this design PDF to Emulsify", "create the
   design system from Figma or PDF", "build the base from Figma or PDF",
@@ -28,18 +28,27 @@ Drupal child theme using design tokens read from **either** a Figma file
 (via the Figma MCP server) **or** a local design-tokens PDF (via the
 built-in `Read` tool). Both sources feed the same Step 4 file generation.
 Output: full SCSS token system, Sass functions, Storybook stories per
-category, and the two design-system-dependent Storybook config files
-(`preview-head.css`, `preview.js`).
+category, and the one design-system-dependent Storybook config file
+(`preview-head.html`).
+
+**Targets Emulsify Core 4 (Vite builder).** Core 4 compiles SCSS through Vite
+and renders Twig/SDC stories with its own integration, so the webpack-era
+config patches this skill used to ship are gone: no `sass-loader` legacy-API
+override, no `staticDirs` map, no Twig `include()`/`source()` polyfills, and no
+`drupalSettings` mock. `preview.js` and `main.js` are now Core-default stubs.
 
 **Scope guardrails:**
 
-- Assumes a **fresh / empty Emulsify theme** like the canonical `bowl`
+- Assumes a **fresh / empty Emulsify Core 4 theme** like the canonical `whisk`
   scaffold (empty `src/components/`, default `config/emulsify-core/storybook/`
-  stubs). Does not audit or back-compat existing components.
-- Generates `preview-head.css`, `preview.js`, **and** `main.js` (required
-  for any base/ output to compile — see Step 5). Does **not** modify
-  `preview-head.html` or `preview-head.js` — those are project-specific
-  extras (e.g. GSAP, clipboard JS), not design-system fundamentals.
+  stubs: `main.js`, `preview.js`, `preview-head.html`, `manager-head.html`,
+  `theme.js`). Does not audit or back-compat existing components.
+- Generates `preview-head.html` (the one design-system-dependent config file:
+  `:root` tokens + `.sb-*` chrome + font `<link>`). Writes the Core-default
+  `preview.js` / `main.js` / `manager-head.html` stubs as-is, and may swap brand
+  colors in `theme.js`. Does **not** modify `preview-head.js` if present — that
+  is a project-specific extra (e.g. GSAP, clipboard JS), not a design-system
+  fundamental.
 - Scope is `base/` only — does not generate atoms / molecules / organisms.
   For atom/molecule/organism work, use the sibling
   `emulsify-figma-component` skill.
@@ -472,7 +481,7 @@ Each category follows the same two-file pattern:
 
 > **Map-key rule: spacing & font-size keys MUST be px values.**
 > `$spacings: (8: …, 16: …, 32: …)` — not ordinals. Reason: the `.sb-*`
-> chrome rules in `preview-head.css` (verbatim) consume `var(--s-16)`,
+> chrome rules in `preview-head.html` (verbatim) consume `var(--s-16)`,
 > `var(--s-32)`, `var(--fs-14)`. The `*-variables.scss` entry point
 > emits one `--s-{key}` per map key. If your map keys are ordinal
 > (1, 2, 3…22) and Figma's "Spacing 8" is 28px, `--s-8` resolves to
@@ -551,10 +560,10 @@ written on top of this base must call them — **never** hand-write
 
 **The two legal exceptions** — places raw `var()` is correct:
 
-- `preview-head.css` — the file lives outside the Sass pipeline; chrome
-  rules in `references/preview-head.css` (`.sb-table th { padding:
-  var(--s-16) var(--s-32) }`) are verbatim and reference raw vars by
-  design.
+- `preview-head.html` — its `<style>` block lives outside the Sass
+  pipeline; chrome rules in `references/storybook/preview-head.html`
+  (`.sb-table th { padding: var(--s-16) var(--s-32) }`) are verbatim and
+  reference raw vars by design.
 - Generated `*-variables.scss` entry points emit `:root { --s-N: …; }`
   declarations — that's the source of the vars, not a consumer.
 
@@ -576,14 +585,14 @@ points elsewhere — but for a fresh Emulsify scaffold, they belong in
 `base.scss` so the `:root { --clr-…, --s-… }` blocks reach the compiled
 Drupal CSS.
 
-> **Cascade gotcha.** `node_modules/@emulsify/core/.storybook/utils.js`
-> calls `fetchCSSFiles()` which loads every `dist/**/*.css` after
-> `preview-head.css`. Any `--var` your SCSS emits with the same name as
-> a `preview-head.css` declaration **wins** in the cascade. So
-> Storybook is NOT insulated from your SCSS values. This is why map-key
-> collisions (see "Map-key rule" above) silently break Storybook
-> chrome — preview-head's `--s-16: 1rem` gets overridden by SCSS's
-> `--s-16: 4.5rem` at runtime. Match values or use disjoint names.
+> **Cascade gotcha.** Emulsify Core loads the theme's compiled
+> `dist/**/*.css` into the Storybook preview after `preview-head.html`'s
+> `<style>` block. Any `--var` your SCSS emits with the same name as a
+> `preview-head.html` declaration **wins** in the cascade. So Storybook
+> is NOT insulated from your SCSS values. This is why map-key collisions
+> (see "Map-key rule" above) silently break Storybook chrome —
+> preview-head's `--s-16: 1rem` gets overridden by SCSS's `--s-16: 4.5rem`
+> at runtime. Match values or use disjoint names.
 
 When you generate the conditional categories `border-radius/` and/or
 `shadows/` (see below), add their `@use` lines alongside the others.
@@ -689,15 +698,25 @@ so the directory is tracked in git until real SVGs land in
 
 ## Step 5 — Update Storybook config files
 
-### `preview-head.css`
+Emulsify Core 4 uses a **Vite** builder and renders Twig/SDC stories with its
+own integration. The only config file that carries design-system content is
+`preview-head.html`. `preview.js`, `main.js`, `theme.js`, and
+`manager-head.html` are Core-default stubs — write them from
+`references/storybook/` as-is (the one optional edit is `theme.js` brand colors).
 
-Read `references/preview-head.css` in full.
+### `preview-head.html` (the one design-system config file)
 
-Prepend a `:root {}` block (the reference ships **without** one) that
-inlines every token value as **plain CSS**. No `@use`, no `@import`, no
-Sass of any kind — sass-loader rejects `:root { @use ... }` with the
-`"An importer must have either canonicalize and load methods"` error
-covered below.
+Read `references/storybook/preview-head.html` in full.
+
+Core 4 appends this file to the Storybook preview iframe `<head>`. It carries
+three things inside one `<style>` block plus an optional font `<link>`:
+
+1. The `:root {}` design tokens (plain CSS — no Sass).
+2. The `.sb-*` chrome rules the `Base/*` stories render with (verbatim).
+3. The `[data-component-theme='dark']` rule (if dark mode).
+
+Fill the `:root {}` block with every token value as **plain CSS**. No `@use`,
+no `@import`, no Sass — this `<style>` block is served as-is to the browser.
 
 > **Critical — colors must be RGB channel triples, not hex.** The
 > `clr()` Sass function (`references/base/functions/_color.scss`) emits
@@ -706,22 +725,22 @@ covered below.
 > with no color. Emit each color CSS var as comma-separated channels
 > (e.g. `--clr-link: 0, 95, 137;`), then any direct-CSS consumer wraps
 > with `rgb(...)` (e.g. `background-color: rgb(var(--clr-link));`).
-> The reference's existing `[data-component-theme='dark']` rule already
-> uses `rgba(var(--clr-grey-100))` — match that pattern.
+> The reference's `[data-component-theme='dark']` rule already uses
+> `rgb(var(--clr-grey-100))` — match that pattern.
 
 **Chrome-required CSS vars** consumed by the `.sb-*` rules (verbatim in
-`references/preview-head.css`): `--s-8 --s-16 --s-24 --s-32 --s-48
+`references/storybook/preview-head.html`): `--s-8 --s-16 --s-24 --s-32 --s-48
 --fs-14 --fs-16`. These names are fixed — the chrome rules `var()`
 them by these literal names. Two valid strategies:
 
 - **Px-keyed SCSS scale (preferred)** — if your `_spacing.scss` is px-keyed
   per the "Map-key rule" in Step 4, the SCSS already emits `--s-8 /
   --s-16 / --s-24 / --s-32 / --s-48` with the correct rem values. **Omit
-  the chrome alias block entirely** — declaring them in `preview-head.css`
+  the chrome alias block entirely** — declaring them in `preview-head.html`
   duplicates (and may collide with) the SCSS output.
 - **Non-px / semantic SCSS scale** (e.g. bowl uses xs/sm/md/lg/xl/xxl) —
   the SCSS emits `--s-xl`, `--s-md`, etc. with no `--s-8`/`--s-16`/…
-  collision. Declare the chrome aliases explicitly in `preview-head.css`
+  collision. Declare the chrome aliases explicitly in `preview-head.html`
   with their **px-implied** rem values (`--s-8: 0.5rem; --s-16: 1rem;
   --s-24: 1.5rem; --s-32: 2rem; --s-48: 3rem; --fs-14: 0.875rem;
   --fs-16: 1rem;`). Never set them to anything other than the
@@ -751,105 +770,41 @@ Do **NOT** invent alias names like `--spacing-xl`, `--fs-small`,
 `--fs-caption` — they're not consumed by any `.sb-*` rule and will be
 dead weight.
 
-Update the existing `[data-component-theme='dark']` rule to point at the
+Update the `[data-component-theme='dark']` rule to point at the
 design's darkest surface token (e.g. `rgb(var(--clr-grey-1000))`).
+
+**Fonts.** Update the font `<link>` (Google Fonts / Adobe Fonts) per Step 3's
+font decision, or delete it entirely when the theme ships local `@font-face`
+partials. Font loading must happen via `<link>` in this file's head — never via
+`@import` in SCSS or JS.
 
 Leave all `.sb-*` class rules **unchanged**.
 
-Write result to `{THEME_ROOT}/config/emulsify-core/storybook/preview-head.css`.
+Write result to `{THEME_ROOT}/config/emulsify-core/storybook/preview-head.html`.
 
-### `preview.js`
+### `preview.js`, `main.js`, `manager-head.html` — Core-default stubs
 
-Read `references/preview.js` in full.
+These no longer carry any design-system or webpack-era content under Core 4:
 
-Update the Google Fonts `<link>` string (or replace with Adobe Fonts link,
-or remove entirely) per Step 3's font decision. Font loading must happen
-via `<link>` injected into the document head — never via `@import` in
-SCSS or JS.
+- `preview.js` → `export const parameters = {}`. Core renders Twig/SDC itself,
+  so there are no `include()`/`source()` polyfills, no `drupalSettings` mock,
+  and no `require.context` story loader to maintain.
+- `main.js` → `export default {}`. Vite compiles SCSS directly, so there is no
+  `sass-loader` legacy-API patch; Core serves theme assets, so there is no
+  `staticDirs` map.
+- `manager-head.html` → Storybook manager chrome only.
 
-Update Twig namespace patterns to match the target theme machine name
-(replace `my_theme` references with `{theme-machine-name}`).
+Copy each from `references/storybook/` verbatim to
+`{THEME_ROOT}/config/emulsify-core/storybook/`. A fresh `whisk`-style scaffold
+already ships these stubs — re-emitting them just guarantees a clean baseline.
 
-**Drop reference imports for files that don't exist in the target theme.**
-The reference imports `'./preview-head.js'` and
-`'../../../assets/fonts/sb-fonts.css'` — both are my_theme-specific extras
-(GSAP / clipboard JS, a local fonts CSS). A fresh Emulsify scaffold has
-neither. Leaving the import lines in place crashes Storybook at boot
-with "module not found." Confirm each file's existence in the target;
-delete the matching import line if absent.
+### `theme.js` — optional manager branding
 
-**Strip my_theme-specific `drupalSettings` polyfill keys.** The reference's
-`window.drupalSettings` polyfill includes `my_theme_search` and `my_theme_language`
-keys. These are my_theme-Drupal-module-specific. Remove both entirely for any
-other theme — they leak the source theme's app surface and confuse
-components that introspect `drupalSettings`. Also collapse the
-`PUBLIC_ASSET_BASE` GH-Pages branch (`fourkitchens.github.io`) — it's a
-my_theme deployment hook; replace with a single `/assets/` constant unless
-the target theme has its own GH-Pages deployment.
-
-Write result to `{THEME_ROOT}/config/emulsify-core/storybook/preview.js`.
-
-### `main.js` (required — fixes a sass-loader incompatibility)
-
-Read `references/storybook/main.js` in full.
-
-This file overrides Storybook's `webpackFinal` hook to force
-`sass-loader` into legacy API mode. Without it, **every** component
-SCSS that the theme compiles will fail with:
-
-> `An importer must have either canonicalize and load methods, or a findFileUrl method.`
-
-Cause: Emulsify-core's storybook webpack config uses
-`node-sass-glob-importer` (legacy importer API). Dart Sass ≥ 1.45
-defaults to the modern API which rejects legacy importers. The override
-walks every webpack rule (including nested `oneOf` blocks added by
-Storybook 9) and sets `api: 'legacy'` on every `sass-loader` entry.
-
-The reference chains `extendWebpackConfig` from
-`@emulsify/core/.storybook/webpack.config.js` first, then applies the
-patch — so user `configOverrides` do not blow away Emulsify's twig/yaml
-loader setup.
-
-Substitutions when writing into the theme:
-- `[{THEME_MACHINE_NAME}]` → the target theme machine name (the
-  bracketed prefix on the `console.log` line).
-
-#### `main.js` `staticDirs` map (required — fixes the Icons table render)
-
-Beyond the sass-loader patch, the reference `main.js` also defines a
-`configOverrides.staticDirs` array that maps each `assets/*` directory
-to a matching URL path via absolute `{from, to}` entries (`assets/fonts`,
-`assets/images`, `assets/icons`, `assets/videos`, plus an absolute
-`dist` entry). The skill writes it verbatim — **no per-theme
-substitution** — because all paths derive at runtime from `themeRoot`
-(computed via `import.meta.url`).
-
-**Why it matters:** emulsify-core's default `staticDirs` uses bare
-strings, which Storybook serves at URL root (`/x.svg` instead of
-`/assets/icons/x.svg`). The icon SDC template calls
-`source('@assets/icons/' ~ name ~ '.svg')`. At Storybook runtime the
-`source()` polyfill XHRs the URL — with bare-string `staticDirs` the
-fetch 404s and the polyfill falls back to returning the URL string
-verbatim, which is what gets rendered into the `Base/Icons` table
-("`/assets/icons/arrow-right.svg`" instead of the inline SVG).
-
-**Why absolute paths:** Storybook 9's `{from, to}` form serializes to
-`"from:to"` and runs the `from` through `path.resolve`, which mangles
-colon-form relative paths. The reference uses
-`resolve(themeRoot, 'assets/icons')` so `from` is already absolute and
-skips the mangling codepath.
-
-The reference also adds the three node imports
-(`fileURLToPath` from `node:url`, `dirname` + `resolve` from `node:path`)
-and the `themeRoot = resolve(_dirname, '../../..')` line at the top of
-the file. Carry them through unchanged.
-
-Write result to `{THEME_ROOT}/config/emulsify-core/storybook/main.js`.
-
-> **Note** — this file also lives in the "scope guardrails" carve-out
-> at the top of this SKILL.md. `preview-head.html` and `preview-head.js`
-> remain out of scope; only `main.js`, `preview.js`, and `preview-head.css`
-> are skill-written.
+Read `references/storybook/theme.js`. It themes Storybook's **manager UI**
+(sidebar/toolbar), not rendered components. Carry it as-is, or optionally swap
+`colorPrimary` / `colorSecondary` / `appBg` and the fonts to the design's
+palette. Not required for any `Base/*` story to render. Write to
+`{THEME_ROOT}/config/emulsify-core/storybook/theme.js`.
 
 ---
 
@@ -858,10 +813,8 @@ Write result to `{THEME_ROOT}/config/emulsify-core/storybook/main.js`.
 ```bash
 cd {THEME_ROOT}
 npm install 2>&1 | tail -5
-# storybook needs ./dist to exist (static asset target) and
-# src/components/ui/ to exist (preview.js require.context).
-mkdir -p dist src/components/ui
-touch src/components/ui/.gitkeep
+# Vite build needs ./dist to exist (npm run ensure-dist also creates it).
+mkdir -p dist
 npm run develop &
 sleep 25
 curl -s http://localhost:6006/index.json | python3 -c "
@@ -894,22 +847,19 @@ Common failure modes:
 | `get_variable_defs` returned empty but the file has Variables | The supplied `nodeId` was too deep to reach any variable-bound node. Ask user for a page-level or root tokens frame URL ("Copy link to selection" on the Figma page tab) and retry 1a. |
 | URL has no `node-id` query param | Call `get_metadata` with only `fileKey` (omit nodeId) → returns top-level pages. Ask user for a node-specific URL ("Copy link to selection" in Figma). |
 | URL contains `/make/` | Figma Make files not supported by this skill. Ask user for a regular `/design/` URL. |
-| `An importer must have either canonicalize and load methods` **inside `preview-head.css`** | Remove any Sass from `preview-head.css`; inline all values as plain CSS. |
-| `An importer must have either canonicalize and load methods` **on any `.scss` compile** (most components) | Missing `main.js` override. Write `config/emulsify-core/storybook/main.js` from `references/storybook/main.js` — it forces `sass-loader` `api: 'legacy'` so Emulsify-core's `node-sass-glob-importer` works with Dart Sass ≥ 1.45. |
-| `Base/Icons` story rows show raw text like `/assets/icons/arrow-right.svg` in the Preview column instead of the inline SVG | `main.js` missing the `staticDirs` `{from, to}` map. Bare-string `staticDirs` from emulsify-core serves at URL root, so `source('@assets/icons/x.svg')` polyfill XHR 404s and returns the URL string verbatim. Re-emit `main.js` from `references/storybook/main.js` — it ships the absolute-path mapping for `assets/{fonts,images,icons,videos}` + `dist`. |
+| `Base/*` story CSS looks unstyled / chrome tables broken | The `<style>` block in `preview-head.html` contains Sass (`@use`, nesting, functions). Core serves it as literal CSS to the browser — no Sass compile step. Inline all values as plain CSS. |
+| A `.scss` file fails to compile under Vite | Real Sass error, not a loader issue (Core 4 compiles SCSS through Vite directly — no `sass-loader` patch). Check the `@use` paths and map keys reported in the error. |
+| `Base/Icons` story rows show raw text like `/assets/icons/arrow-right.svg` instead of the inline SVG | The SVG file isn't being served. Confirm the referenced files exist under `{THEME_ROOT}/assets/icons/` and that the theme's `project.emulsify.json` asset config is intact — Core 4 serves theme assets through Vite (no skill-side `staticDirs` map). |
 | Drupal SDC registration error: duplicate component id `icon` | Icon SDC scaffolded at both `src/components/base/icons/icon.*` and `src/components/icon/icon.*`. Delete the top-level `src/components/icon/` folder; SDC discovers components by folder name regardless of nesting depth. Skill must only write under `base/icons/`. |
-| Component background appears unset / browser DevTools shows `Invalid property value` on `background-color: rgba(#005f89, 1)` | `--clr-*` in `preview-head.css` written as hex. They must be RGB triples (e.g. `--clr-link: 0, 95, 137;`) because `clr()` wraps in `rgba(var(--clr-x), 1)`. |
-| Storybook fails to start: `Failed to load static files, no such directory: ./dist` | Run `mkdir -p {THEME_ROOT}/dist` once. The `dist/` directory is webpack's output target; storybook serves it as a static dir even when empty. |
-| Storybook fails: `Can't resolve '../../../src/components/ui/'` in preview.js | The `require.context` in preview.js needs the `ui/` (or matching layer) directory to exist. Create `src/components/ui/.gitkeep` so the directory resolves even before any UI components exist. |
+| Component background appears unset / browser DevTools shows `Invalid property value` on `background-color: rgba(#005f89, 1)` | `--clr-*` in `preview-head.html` written as hex. They must be RGB triples (e.g. `--clr-link: 0, 95, 137;`) because `clr()` wraps in `rgba(var(--clr-x), 1)`. |
+| Storybook fails to start: `no such directory: ./dist` | Run `mkdir -p {THEME_ROOT}/dist` once (or `npm run ensure-dist`). `dist/` is the Vite build output target. |
 | Story missing from `/index.json` | Check `.stories.js` `title` + export name matches the reference exactly |
-| Font not loading | Ensure font `<link>` is in `preview.js`, not `@import` in CSS |
+| Font not loading | Ensure the font `<link>` is in `preview-head.html`, not `@import` in CSS |
 | Wrong CSS var name | Re-read the token source; use exact property names from Step 1 inventory |
-| Dark theme not applying | Update `[data-component-theme='dark']` in `preview-head.css` to use `rgb(var(--clr-x))` with the design's darkest surface token. |
-| Webpack error: cannot find `base/...` | Check `base.scss` `@use` lines match generated category folders |
-| Twig namespace not resolving | Update `my_theme` → target theme machine name in `preview.js` |
-| Storybook crashes at boot: `Module not found: Can't resolve './preview-head.js'` or `'../../../assets/fonts/sb-fonts.css'` | Reference `preview.js` imports both; they are my_theme-specific. Delete the import line if the target theme has no such file. |
-| Component reads `drupalSettings.my_theme_search` and gets my_theme data in a non-my_theme theme | The reference's `drupalSettings` polyfill leaks `my_theme_search` / `my_theme_language` keys. Strip both from `preview.js` for any other theme. |
-| Storybook `.sb-table` cells render with too much or too little padding; `.sb-content` margins look 3–4× off | Spacing SCSS map keyed by **ordinals** (1..22) instead of px values. Chrome rules consume `var(--s-16)`, `var(--s-32)` expecting px-implied rem; SCSS-emitted `--s-16` (e.g. 4.5rem for ordinal-16=72px) wins the cascade and blows out the layout. Re-key `_spacing.scss` + `spacing.yml` by px value (2, 4, 8, …, 120), update every `space(N)` callsite (`_container.scss`, `_top-border.scss`, `_utility.scss`, `_typography-mixins.scss`), and drop the now-duplicate `--s-*` alias block from `preview-head.css`. Same trap and same fix for `--fs-*`. |
+| Dark theme not applying | Update `[data-component-theme='dark']` in `preview-head.html` to use `rgb(var(--clr-x))` with the design's darkest surface token. |
+| Vite/Sass error: cannot find `base/...` | Check `base.scss` `@use` lines match generated category folders |
+| Twig namespace not resolving | Core resolves namespaces from the theme's `*.info.yml` / `project.emulsify.json`. Ensure `base/` Twig `include`s reference the target theme machine name (e.g. `{theme}:icon`), not `my_theme`. |
+| Storybook `.sb-table` cells render with too much or too little padding; `.sb-content` margins look 3–4× off | Spacing SCSS map keyed by **ordinals** (1..22) instead of px values. Chrome rules consume `var(--s-16)`, `var(--s-32)` expecting px-implied rem; SCSS-emitted `--s-16` (e.g. 4.5rem for ordinal-16=72px) wins the cascade and blows out the layout. Re-key `_spacing.scss` + `spacing.yml` by px value (2, 4, 8, …, 120), update every `space(N)` callsite (`_container.scss`, `_top-border.scss`, `_utility.scss`, `_typography-mixins.scss`), and drop the now-duplicate `--s-*` alias block from `preview-head.html`. Same trap and same fix for `--fs-*`. |
 
 ---
 
@@ -924,27 +874,23 @@ Common failure modes:
 - [ ] All entry-point files have no `_` prefix
 - [ ] `base.scss` uses `@use` for every category (not `@import`)
 - [ ] `base.scss` `@use`s every `*-variables.scss` entry point so Drupal CSS-var output is non-empty (reference omits these — add for fresh themes)
-- [ ] `preview.js` imports for files absent from target theme (`preview-head.js`, `sb-fonts.css`) deleted
-- [ ] `preview.js` `drupalSettings` polyfill stripped of `my_theme_search` / `my_theme_language` keys
 - [ ] `_rem-calc.scss` + `_px2rem.scss` copied verbatim
-- [ ] `preview-head.css` `:root` block is plain CSS (no Sass)
-- [ ] `preview-head.css` `--clr-*` declarations are **RGB channel triples** (`0, 95, 137`), NOT hex (`#005f89`)
+- [ ] `preview-head.html` `<style>` `:root` block is plain CSS (no Sass)
+- [ ] `preview-head.html` `--clr-*` declarations are **RGB channel triples** (`0, 95, 137`), NOT hex (`#005f89`)
 - [ ] `[data-component-theme='dark']` uses `rgb(var(--clr-x))` with design's darkest surface token
 - [ ] Spacing map keyed by **px value** (2, 4, 8, …) — not ordinal (1, 2, 3, …22)
 - [ ] Font-size map keyed by **px value** (12, 14, 16, …) — not ordinal
-- [ ] Chrome-required vars (`--s-8 --s-16 --s-24 --s-32 --s-48 --fs-14 --fs-16`) resolve to their **px-implied rem** at runtime — declared once (either by SCSS emit if scale is px-keyed, or by explicit alias in `preview-head.css` if scale is semantic). No duplicate declaration with mismatched values.
-- [ ] `preview.js` font loading matches Step 3 decision
-- [ ] `preview.js` Twig namespaces updated to target theme machine name
-- [ ] `config/emulsify-core/storybook/main.js` written from `references/storybook/main.js` (sass-loader legacy API patch)
-- [ ] `main.js` `configOverrides.staticDirs` present with absolute `{from, to}` entries for `assets/{fonts,images,icons,videos}` + absolute `dist` path (theme root resolved via `import.meta.url` → `themeRoot`)
-- [ ] `{THEME_ROOT}/dist/` directory exists (storybook static target)
-- [ ] `src/components/ui/.gitkeep` present (preview.js require.context target)
+- [ ] Chrome-required vars (`--s-8 --s-16 --s-24 --s-32 --s-48 --fs-14 --fs-16`) resolve to their **px-implied rem** at runtime — declared once (either by SCSS emit if scale is px-keyed, or by explicit alias in `preview-head.html` if scale is semantic). No duplicate declaration with mismatched values.
+- [ ] `preview-head.html` font `<link>` matches Step 3 decision (or removed for local `@font-face`)
+- [ ] `preview.js` / `main.js` / `manager-head.html` copied verbatim from `references/storybook/` (Core-default stubs)
+- [ ] `theme.js` written (carried as-is, or brand colors swapped to design palette)
+- [ ] `{THEME_ROOT}/dist/` directory exists (Vite build output target)
 - [ ] `icons/.gitkeep` present
 - [ ] Icon SDC component (`icon.twig` verbatim + `icon.component.yml` with `enum:` regenerated from `assets/icons/*.svg`, or `enum:` omitted if no SVGs) present under `src/components/base/icons/`
 - [ ] Icon SDC component exists **only** under `src/components/base/icons/` — no duplicate at top-level `src/components/icon/` (Drupal SDC throws `duplicate component id` otherwise)
 - [ ] Storybook started, `/index.json` verified
-- [ ] Zero webpack errors
-- [ ] First component SCSS that calls `clr()` compiles without `"An importer must have…"` or `rgba(#hex)` errors
+- [ ] Zero Vite/Sass build errors
+- [ ] First component SCSS that calls `clr()` compiles cleanly (no `rgba(#hex)` errors)
 - [ ] All 7 base stories present (Colors, Spacing, Breakpoints, TypeFaces, HeadingStyles, BodyStyles, Icons)
 - [ ] `Base/BorderRadius` story present **iff** Figma defined border-radius tokens
 - [ ] `Base/Shadows` story present **iff** Figma defined box-shadow tokens

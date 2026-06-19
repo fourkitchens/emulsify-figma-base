@@ -1,7 +1,7 @@
 ---
 name: emulsify-figma-base
 description: >
-  Builds a complete Emulsify design system base from a Figma file (via
+  TEST Builds a complete Emulsify design system base from a Figma file (via
   the Figma MCP) or a design-tokens PDF (via the built-in Read tool).
   Use this skill any time the user provides a figma.com URL (file or
   frame) OR a local PDF path with design tokens and wants to scaffold
@@ -503,7 +503,11 @@ Mirror each category:
 | `fonts/` | `fonts/` (see Step 3 — pattern depends on font loading strategy) |
 | `motion/` | `motion/` |
 | `utility/` | `utility/` |
-| `icons/` | `icons/` (includes the `icon` SDC component — `icon.twig` + `icon.component.yml` — alongside the listing; also create `.gitkeep` for empty themes) |
+| `icons/` | `icons/` (includes the `icon` SDC component — `icon.twig` + `icon.component.yml` — alongside the listing, single target; see `icons/` section below; also create `.gitkeep` for empty themes) |
+
+Also write **`{THEME_ROOT}/project.emulsify.json`** (outside `src/components/`)
+when the theme lacks one — see "Theme registration" below. Without it the
+`{theme}:` Twig namespace is never registered and every icon preview is empty.
 
 **Dual-mode colors:** when dark mode is enabled, emit two SCSS maps
 (`$colors-light`, `$colors-dark`) and generate both `:root { ... }` and
@@ -660,34 +664,75 @@ What to update per file type:
 ### `icons/` directory
 
 Copy `references/base/icons/icons.stories.js` and `icons.twig` verbatim.
-Also ship the `icon` SDC component the listing depends on:
+
+> **`icons.stories.js` renders through `renderTwig` — do not "simplify" it
+> back to a returned HTML string.** The reference imports
+> `renderTwig` from `@emulsify/core/storybook` and exports
+> `renderTwig(iconsTemplate, { context: { icons: iconNames } })`. Each row's
+> SVG comes from a lazy `source('@assets/icons/*.svg')` Vite glob that is
+> **unresolved on first render**; `renderTwig`'s `TwigStory` re-runs the
+> template on the `emulsify:twig-source-loaded` event so `source()` returns
+> the cached SVG. A precomputed-string story freezes the empty first render
+> and the SVG never appears. **Only the icons story needs `renderTwig`** —
+> colors / spacing / breakpoints / typography stories don't call `source()`
+> and stay as plain returned strings.
+
+Also ship the `icon` SDC component the listing depends on — written to a
+**single** target, `src/components/base/icons/`:
 
 - `references/base/icons/icon.twig` → `src/components/base/icons/icon.twig`
   — **verbatim**. Uses project-local `bem()` / `add_attributes()` and
-  `source('@assets/icons/' ~ name ~ '.svg')`. No theme-name or token
-  values to substitute.
+  `source('@assets/icons/' ~ name ~ '.svg')`. No theme-name or token values
+  to substitute.
 - `references/base/icons/icon.component.yml` →
   `src/components/base/icons/icon.component.yml` — **tokens tier**.
   Reference omits `enum:` under `properties.name`. **Imperatively** list
   `{THEME_ROOT}/assets/icons/*.svg` (e.g. `ls {THEME_ROOT}/assets/icons/*.svg`),
   strip the `.svg` extension, sort alphabetically, and emit the result
-  as the `enum:` block. Only when the directory is empty or missing
-  does the skill omit `enum:` — once real SVGs land, re-run the skill
-  (or hand-edit the yml) to populate it.
+  as the `enum:` block. Only when the directory is empty or missing does the
+  skill omit `enum:` — once real SVGs land, re-run the skill (or hand-edit
+  the yml) to populate it.
 
-**Location is fixed to `base/icons/` — do NOT also create a top-level
-`src/components/icon/` folder.** Drupal SDC discovers components by
-folder name regardless of nesting depth, so two folders named `icon/`
-register as duplicate component IDs and SDC throws a registration
-error. The reference ships the files under `base/icons/`; the skill
-mirrors that path and nothing else. The `{theme}:icon` Twig include in
-`icons.twig` resolves to the component at `base/icons/icon.*` — no
-top-level duplicate needed.
+**The icon component lives only at `base/icons/` — do NOT also create a
+top-level `src/components/icon/`.** Note `base/icons/icon.component.yml` is dir
+`icons` + file `icon`, so it does **not** register a valid Drupal SDC `icon`
+component on the real site (SDC keys a component by `{dir}/{dir}.component.yml`,
+dir name must equal the yml basename). That is intentional and fine for this
+skill: it scaffolds the **Storybook design-system base**, and Storybook resolves
+the listing's `{theme}:icon` include to `base/icons/icon.twig` by **basename**
+under the `src/components/base` structure root. A real-site reusable `icon` SDC
+atom (a top-level `src/components/icon/` with a matching dir + `icon.component.yml`)
+is **out of scope** here — create it with a dedicated component skill if the site
+needs it.
 
-Without `icon.twig` + `icon.component.yml`, the `Base/Icons` Storybook
-story renders rows of empty `<span class="icon sb-icon-preview">`
-cells because `icons.twig`'s `{% include '{theme}:icon', … %}` calls
-have no target.
+Without `icon.twig` + `icon.component.yml` **and** a `project.emulsify.json`
+registering the namespace (see below), the `Base/Icons` story renders rows of
+empty `<span class="icon sb-icon-preview">` cells because `icons.twig`'s
+`{% include '{theme}:icon', … %}` calls have no resolvable target.
+
+### Theme registration — `project.emulsify.json`
+
+Read `references/project.emulsify.json` before writing. Emulsify Core derives
+the theme's Twig namespace machine name from this file
+(`node_modules/@emulsify/core/config/vite/project-config.js` →
+`machineName`; `src/storybook/twig/reference-paths.js` → the component
+namespace). If the file is absent, `machineName` is `undefined`, the
+`{theme}:` namespace is never registered, and `include('{theme}:icon', …)`
+returns `''` — every icon preview is empty.
+
+A fresh Emulsify child theme may not have this file. **Write it only if the
+theme has none.** Derive `machineName` from the theme directory name, set
+`project.name` to the human-readable theme name, and add one
+`structureImplementations` entry per generated structure dir (base-only by
+default):
+
+```json
+{
+  "project": { "name": "My Theme", "machineName": "my_theme", "platform": "drupal" },
+  "variant": { "structureImplementations": [
+    { "name": "base", "directory": "src/components/base" } ] }
+}
+```
 
 The reference does not include a `.gitkeep` (the reference's icons
 folder is populated). For a fresh theme, also write `icons/.gitkeep`
@@ -850,7 +895,7 @@ Common failure modes:
 | `Base/*` story CSS looks unstyled / chrome tables broken | The `<style>` block in `preview-head.html` contains Sass (`@use`, nesting, functions). Core serves it as literal CSS to the browser — no Sass compile step. Inline all values as plain CSS. |
 | A `.scss` file fails to compile under Vite | Real Sass error, not a loader issue (Core 4 compiles SCSS through Vite directly — no `sass-loader` patch). Check the `@use` paths and map keys reported in the error. |
 | `Base/Icons` story rows show raw text like `/assets/icons/arrow-right.svg` instead of the inline SVG | The SVG file isn't being served. Confirm the referenced files exist under `{THEME_ROOT}/assets/icons/` and that the theme's `project.emulsify.json` asset config is intact — Core 4 serves theme assets through Vite (no skill-side `staticDirs` map). |
-| Drupal SDC registration error: duplicate component id `icon` | Icon SDC scaffolded at both `src/components/base/icons/icon.*` and `src/components/icon/icon.*`. Delete the top-level `src/components/icon/` folder; SDC discovers components by folder name regardless of nesting depth. Skill must only write under `base/icons/`. |
+| `Base/Icons` preview cells empty (icon **name** shows, inline `<svg>` does not) / `{theme}:icon` include resolves to `''` | One of two: (1) **No `project.emulsify.json`** → `machineName` undefined → `{theme}:` namespace never registered → include returns `''`. Write it (see Theme registration). (2) **`icons.stories.js` returns a precomputed HTML string** → freezes the empty first render while the lazy `source('@assets/icons/*.svg')` glob is still loading. Use `renderTwig(iconsTemplate, { context: { icons } })` so `TwigStory` re-runs on `emulsify:twig-source-loaded`. (The icon component stays at `base/icons/` only; a real-site SDC `icon` atom is out of scope — see the `icons/` section.) |
 | Component background appears unset / browser DevTools shows `Invalid property value` on `background-color: rgba(#005f89, 1)` | `--clr-*` in `preview-head.html` written as hex. They must be RGB triples (e.g. `--clr-link: 0, 95, 137;`) because `clr()` wraps in `rgba(var(--clr-x), 1)`. |
 | Storybook fails to start: `no such directory: ./dist` | Run `mkdir -p {THEME_ROOT}/dist` once (or `npm run ensure-dist`). `dist/` is the Vite build output target. |
 | Story missing from `/index.json` | Check `.stories.js` `title` + export name matches the reference exactly |
@@ -886,8 +931,9 @@ Common failure modes:
 - [ ] `theme.js` written (carried as-is, or brand colors swapped to design palette)
 - [ ] `{THEME_ROOT}/dist/` directory exists (Vite build output target)
 - [ ] `icons/.gitkeep` present
-- [ ] Icon SDC component (`icon.twig` verbatim + `icon.component.yml` with `enum:` regenerated from `assets/icons/*.svg`, or `enum:` omitted if no SVGs) present under `src/components/base/icons/`
-- [ ] Icon SDC component exists **only** under `src/components/base/icons/` — no duplicate at top-level `src/components/icon/` (Drupal SDC throws `duplicate component id` otherwise)
+- [ ] Icon SDC component (`icon.twig` verbatim + `icon.component.yml` with `enum:` regenerated from `assets/icons/*.svg`, or `enum:` omitted if no SVGs) present under `src/components/base/icons/` **only** — no top-level `src/components/icon/` (real-site SDC `icon` atom is out of scope for this skill)
+- [ ] `icons.stories.js` exports `renderTwig(iconsTemplate, …)` — NOT a precomputed HTML string (string freezes the empty first render before the lazy `source()` SVG glob resolves)
+- [ ] `{THEME_ROOT}/project.emulsify.json` present with `machineName` = theme dir (written when the theme had none) — registers the `{theme}:` Twig namespace
 - [ ] Storybook started, `/index.json` verified
 - [ ] Zero Vite/Sass build errors
 - [ ] First component SCSS that calls `clr()` compiles cleanly (no `rgba(#hex)` errors)

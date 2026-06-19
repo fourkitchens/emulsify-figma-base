@@ -1,0 +1,15 @@
+{
+  "project": {
+    "name": "My Theme",
+    "machineName": "my_theme",
+    "platform": "drupal"
+  },
+  "variant": {
+    "structureImplementations": [
+      {
+        "name": "base",
+        "directory": "src/components/base"
+      }
+    ]
+  }
+}

@@ -1,7 +1,7 @@
 ---
 name: emulsify-figma-base
 description: >
-  TEST Builds a complete Emulsify design system base from a Figma file (via
+  Builds a complete Emulsify design system base from a Figma file (via
   the Figma MCP) or a design-tokens PDF (via the built-in Read tool).
   Use this skill any time the user provides a figma.com URL (file or
   frame) OR a local PDF path with design tokens and wants to scaffold

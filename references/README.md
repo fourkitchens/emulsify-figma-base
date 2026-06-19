@@ -161,10 +161,12 @@ empty).
 ### SDC icon component
 
 `base/icons/icons.twig` calls `{% include '{theme}:icon', { name: icon } %}`
-to render each SVG row. The `icon` SDC component lives alongside the
-listing files so that include resolves out of the box. The component
-uses the project-local `bem()` / `add_attributes()` helpers and reads
-SVG markup with `source('@assets/icons/' ~ name ~ '.svg')`.
+to render each SVG row. The component uses the project-local `bem()` /
+`add_attributes()` helpers and reads SVG markup with
+`source('@assets/icons/' ~ name ~ '.svg')`.
+
+The `icon.twig` + `icon.component.yml` reference pair is written to a
+**single** target, alongside the listing:
 
 | Tier | Reference file | Target path |
 |---|---|---|
@@ -177,11 +179,33 @@ the list of valid icon names is theme-specific. The skill regenerates
 `enum:` from the SVG filenames found in `{THEME_ROOT}/assets/icons/` at
 scaffold time, or leaves it omitted if no SVGs exist yet.
 
-**Location is fixed to `base/icons/`.** Do NOT also create
-`src/components/icon/icon.twig` or `src/components/icon/icon.component.yml`
-at the top level. Drupal SDC discovers components by folder name
-regardless of nesting depth, so two `icon/` folders register as
-duplicate component IDs and SDC throws a registration error.
+**Single target — do NOT also create a top-level `src/components/icon/`.**
+Drupal SDC keys a component by `{dir}/{dir}.component.yml` (directory name must
+match the yml basename), so `base/icons/icon.component.yml` (dir `icons` ≠ file
+`icon`) is **SDC-inert on the real Drupal site**. That is intentional: this
+reference scaffolds the **Storybook design-system base**, and Storybook resolves
+the listing's `{theme}:icon` include to `base/icons/icon.twig` by **basename**
+under the `src/components/base` structure root (no valid SDC id needed). A
+real-site reusable `icon` SDC atom (a top-level `src/components/icon/` with a
+matching dir + `icon.component.yml`) is **out of scope** here — build it with a
+dedicated component skill if the site needs it.
+
+### Theme registration — `project.emulsify.json`
+
+Emulsify Core derives the theme's Twig namespace machine name from
+`project.emulsify.json` (`config/vite/project-config.js` →
+`src/storybook/twig/reference-paths.js`). Without it, `machineName` is
+`undefined`, the `{theme}:` namespace is never registered, and
+`include('{theme}:icon', …)` returns `''` (empty icon previews). A fresh
+Emulsify child theme may not have this file.
+
+| Tier | Reference file | Target path |
+|---|---|---|
+| `structure` | `project.emulsify.json` | `{THEME_ROOT}/project.emulsify.json` |
+
+Swap `name` + `machineName` to the target theme; add one
+`structureImplementations` entry per generated structure dir. **Write only if
+the theme has none.**
 
 ### Storybook config templates (Emulsify Core 4 / Vite)
 

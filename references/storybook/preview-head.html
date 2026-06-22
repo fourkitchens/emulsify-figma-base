@@ -1,0 +1,241 @@
+<!--
+  This file is appended to Storybook's preview iframe <head> by Emulsify
+  Core 4 (Vite builder). It replaces the old webpack-era `preview-head.css`.
+
+  The skill writes three things here:
+    1. A font <link> (Google/Adobe Fonts) — or nothing, when the theme uses
+       local @font-face declared in src/components/base/fonts/.
+    2. A <style> block with the design-system :root tokens consumed by the
+       Storybook chrome (--s-*, --fs-*, --clr-*). Plain CSS only — no Sass.
+    3. The .sb-* chrome rules the Base/* documentation stories render with.
+
+  Storybook UI chrome (sidebar/toolbar) belongs in manager-head.html, not here.
+-->
+
+<!--
+  Font loading. Replace with the design's font <link>, or delete this block
+  entirely when the theme ships local @font-face partials. Never load fonts via
+  @import in SCSS/JS — the <link> must land in the document head.
+-->
+<!--
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link
+  rel="stylesheet"
+  href="https://fonts.googleapis.com/css2?family=Example+Sans:wght@400;700&display=swap"
+/>
+-->
+
+<style>
+  /*
+    Design tokens consumed by the chrome rules below. The skill regenerates this
+    :root block from the design's token inventory — plain CSS values only.
+    --clr-* are RGB channel triples (e.g. 0, 95, 137), never hex, because clr()
+    wraps them in rgba(var(--clr-x), 1). Spacing / font-size keys are px values
+    (--s-16, --fs-14), not ordinals. Drop names no .sb-* rule consumes.
+  */
+  :root {
+    --s-8: 0.5rem;
+    --s-16: 1rem;
+    --s-24: 1.5rem;
+    --s-32: 2rem;
+    --s-48: 3rem;
+    --fs-14: 0.875rem;
+    --fs-16: 1rem;
+    --clr-grey-100: 8, 11, 12;
+  }
+
+  /* Global Storybook styles */
+  .sb-header {
+    padding-block: var(--s-48) var(--s-32);
+    border-bottom: 1px solid #e6e6e6;
+  }
+
+  .sb-header__title,
+  .sb-header__subtitle {
+    margin: 0;
+  }
+
+  .sb-header__subtitle {
+    font-size: var(--fs-16);
+  }
+
+  .sb-content {
+    padding-block: 0 var(--s-48);
+  }
+
+  /* Shared layout styles */
+  .sb-header,
+  .sb-content {
+    margin-inline: var(--s-32);
+  }
+
+  /* Global Storybook table styles */
+  .sb-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-block: var(--s-32);
+  }
+
+  .sb-table-header {
+    margin-block: var(--s-32) var(--s-16);
+  }
+
+  .sb-table th,
+  .sb-table td {
+    text-align: left;
+    padding: var(--s-16) var(--s-32);
+    border: 1px solid #e6e6e6;
+    font-size: var(--fs-14);
+  }
+
+  .sb-table th {
+    background-color: #fafafa;
+    font-weight: 600;
+  }
+
+  .sb-table tr:nth-child(even) {
+    background-color: #ffffff;
+  }
+
+  /* Global Storybook list styles */
+  .sb-list {
+    margin: var(--s-32) 0;
+    list-style: none;
+    padding: 0;
+  }
+
+  .sb-list__title {
+    margin-block: 0 var(--s-32);
+  }
+
+  .sb-list__item:not(:last-child) {
+    border-bottom: 1px solid #e6e6e6;
+  }
+
+  .sb-list__content {
+    display: flex;
+    flex-direction: row;
+    gap: var(--s-32);
+  }
+
+  .sb-list__content-section {
+    display: flex;
+    flex-direction: column;
+    gap: var(--s-8);
+    min-width: 10rem;
+  }
+
+  .sb-list__content-item-label,
+  .sb-list__content-item-value {
+    margin: 0;
+    font-size: var(--fs-14);
+  }
+
+  .sb-list__content-item-label {
+    opacity: 0.75;
+  }
+
+  /* Global Storybook preview styles */
+  td:has(.sb-color-preview) {
+    padding-block: 0;
+  }
+
+  .sb-color-preview {
+    display: inline-block;
+    width: 2.125rem;
+    height: 2.125rem;
+    border: 1px solid #e6e6e6;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
+    border-radius: 0.25rem;
+  }
+
+  .sb-body-preview,
+  .sb-heading-preview {
+    display: flex;
+    width: 425px;
+    height: 190px;
+    padding: var(--s-16) var(--s-32);
+    margin: 0;
+    justify-content: center;
+    align-items: center;
+    flex-shrink: 0;
+    overflow: hidden;
+    background: #f2f2f2;
+  }
+
+  .sb-icon-preview svg {
+    width: var(--s-24);
+    height: var(--s-24);
+  }
+
+  .sb-icon-preview .icon {
+    display: inline-flex;
+    width: var(--s-24);
+    height: var(--s-24);
+  }
+
+  .sb-icon-preview svg {
+    width: 100%;
+    height: 100%;
+    fill: currentColor;
+  }
+
+  /* Global copy functionality styles */
+  li:has(.js-copy-trigger) {
+    width: 100%;
+  }
+
+  .js-copy-trigger {
+    cursor: pointer;
+    transition: box-shadow 0.2s;
+    padding: var(--s-24) var(--s-16) var(--s-32);
+    background: none;
+    border: none;
+    width: 100%;
+  }
+
+  .js-copy-trigger * {
+    text-align: initial;
+  }
+
+  .js-copy-trigger:hover,
+  .js-copy-trigger.copied {
+    box-shadow: 0 0 5px 3px #e8e8e8;
+    border-radius: 0.25rem;
+    background: #ffffff;
+  }
+
+  /* Toast notification styles */
+  .sb-toast {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    background-color: white;
+    padding: var(--s-16) var(--s-32);
+    border-radius: 0.25rem;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    font-size: var(--fs-14);
+    z-index: 9999;
+    transform: translateX(100%);
+    transition: transform 0.3s ease;
+  }
+
+  .sb-toast.show {
+    transform: translateX(0);
+  }
+
+  .sb-toast.hide {
+    transform: translateX(100%);
+  }
+
+  /* Style wrapper for buttons */
+  .sb-main-fullscreen:has(.button) {
+    padding: var(--s-16) var(--s-32);
+  }
+
+  [data-component-theme='dark'] {
+    background-color: rgb(var(--clr-grey-100));
+    padding: var(--s-32);
+  }
+</style>

@@ -14,13 +14,13 @@
         @if meta.type-of($color) == map {
           @each $clrname, $value in $color {
             @if $clrname == 'base' {
-              --clr-#{$name}: #{cnvrt-clr($value, $format)};
+              --clr-#{"" + $name}: #{cnvrt-clr($value, $format)};
             } @else {
-              --clr-#{$name}-#{$clrname}: #{cnvrt-clr($value, $format)};
+              --clr-#{"" + $name}-#{"" + $clrname}: #{cnvrt-clr($value, $format)};
             }
           }
         } @else {
-          --clr-#{$name}: #{cnvrt-clr($color, $format)};
+          --clr-#{"" + $name}: #{cnvrt-clr($color, $format)};
         }
       }
     }
